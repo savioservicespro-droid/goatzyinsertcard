@@ -31,7 +31,7 @@ const WelcomeStep = ({ onContinue, onSkipToGifts, config }) => {
     }, typingSpeed);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [mainText]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-goatzy-bg">
