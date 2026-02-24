@@ -9,7 +9,8 @@ const UpsellStep = ({
   product,
   stepLabel,
   onContinue,
-  onBack
+  onBack,
+  productSlug = 'goat-stand'
 }) => {
   const [codeCopied, setCodeCopied] = useState(false);
 
@@ -20,7 +21,7 @@ const UpsellStep = ({
   const handleShopNow = () => {
     const submissionId = localStorage.getItem('submissionId');
     if (submissionId && product.trackingId) {
-      trackGiftDownload(submissionId, product.trackingId);
+      trackGiftDownload(submissionId, product.trackingId, productSlug);
     }
     window.open(product.amazonUrl, '_blank');
   };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
+import { fetchProductsList } from '../utils/config';
 import * as XLSX from 'xlsx';
 import {
   PieChart,
@@ -25,15 +26,21 @@ const AdminDashboard = () => {
   const [isFunnelAmazonExpanded, setIsFunnelAmazonExpanded] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const selectedRegion = 'US';
+  const [productFilter, setProductFilter] = useState('all');
+  const [productsList, setProductsList] = useState([]);
 
   // Review verification state
   const [amazonReviews, setAmazonReviews] = useState(null);
   const [reviewMatches, setReviewMatches] = useState(null);
 
   useEffect(() => {
+    fetchProductsList().then(list => setProductsList(list || []));
+  }, []);
+
+  useEffect(() => {
     fetchCustomersAndAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRegion]);
+  }, [selectedRegion, productFilter]);
 
   const exportToCSV = () => {
     if (customers.length === 0) {
@@ -183,11 +190,14 @@ const AdminDashboard = () => {
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from('customer_submissions')
         .select('*')
-        .eq('region', selectedRegion)
-        .order('created_at', { ascending: false });
+        .eq('region', selectedRegion);
+      if (productFilter !== 'all') {
+        query = query.eq('product_slug', productFilter);
+      }
+      const { data, error: fetchError } = await query.order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
@@ -216,31 +226,30 @@ const AdminDashboard = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('gift_downloads')
         .select('gift_type, customer_id')
         .eq('region', selectedRegion);
+      if (productFilter !== 'all') {
+        query = query.eq('product_slug', productFilter);
+      }
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      const stats = {
-        assembly_video: { total: 0, unique: 0 },
-        upsell_hay_feeder: { total: 0, unique: 0 },
-        upsell_wall_feeder: { total: 0, unique: 0 }
-      };
-
-      const uniqueUsers = {
-        assembly_video: new Set(),
-        upsell_hay_feeder: new Set(),
-        upsell_wall_feeder: new Set()
-      };
+      // Build stats dynamically from the data
+      const stats = {};
+      const uniqueUsers = {};
 
       data.forEach(download => {
-        if (stats.hasOwnProperty(download.gift_type)) {
-          stats[download.gift_type].total++;
-          if (download.customer_id) {
-            uniqueUsers[download.gift_type].add(download.customer_id);
-          }
+        const type = download.gift_type;
+        if (!stats[type]) {
+          stats[type] = { total: 0, unique: 0 };
+          uniqueUsers[type] = new Set();
+        }
+        stats[type].total++;
+        if (download.customer_id) {
+          uniqueUsers[type].add(download.customer_id);
         }
       });
 
@@ -251,11 +260,7 @@ const AdminDashboard = () => {
       setGiftStats(stats);
     } catch (err) {
       console.error('Error fetching gift stats:', err);
-      setGiftStats({
-        assembly_video: { total: 0, unique: 0 },
-        upsell_hay_feeder: { total: 0, unique: 0 },
-        upsell_wall_feeder: { total: 0, unique: 0 }
-      });
+      setGiftStats({});
     }
   };
 
@@ -492,7 +497,20 @@ const AdminDashboard = () => {
             </p>
           )}
 
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {/* Product filter */}
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="px-4 py-3 border border-goatzy-dark text-goatzy-dark text-sm font-light tracking-wide rounded-lg
+                       bg-white focus:outline-none focus:ring-2 focus:ring-goatzy-accent focus:ring-offset-2 cursor-pointer"
+            >
+              <option value="all">All Products</option>
+              {productsList.map(p => (
+                <option key={p.slug} value={p.slug}>{p.name}</option>
+              ))}
+            </select>
+
             <button
               onClick={exportToCSV}
               disabled={customers.length === 0}
@@ -730,43 +748,31 @@ const AdminDashboard = () => {
         )}
 
         {/* Gift/Action Stats */}
-        {giftStats && (
+        {giftStats && Object.keys(giftStats).length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-light tracking-wide mb-6 text-goatzy-dark">Engagement Stats</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 border border-goatzy-pale rounded-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <svg className="w-12 h-12 text-goatzy-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+            <div className={`grid gap-6 ${Object.keys(giftStats).length <= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
+              {Object.entries(giftStats).map(([type, stats]) => (
+                <div key={type} className="bg-white p-6 border border-goatzy-pale rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <svg className="w-12 h-12 text-goatzy-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {type.includes('video') ? (
+                        <>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </>
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      )}
+                    </svg>
+                  </div>
+                  <h3 className="text-sm font-light tracking-wide text-gray-600 mb-2">
+                    {type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </h3>
+                  <p className="text-4xl font-light text-goatzy-dark mb-1">{stats.unique}</p>
+                  <p className="text-xs text-gray-500">Unique ({stats.total} total)</p>
                 </div>
-                <h3 className="text-sm font-light tracking-wide text-gray-600 mb-2">Assembly Video</h3>
-                <p className="text-4xl font-light text-goatzy-dark mb-1">{giftStats.assembly_video.unique}</p>
-                <p className="text-xs text-gray-500">Unique views ({giftStats.assembly_video.total} total)</p>
-              </div>
-
-              <div className="bg-white p-6 border border-goatzy-pale rounded-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <svg className="w-12 h-12 text-goatzy-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-                <h3 className="text-sm font-light tracking-wide text-gray-600 mb-2">Hay Feeder Upsell</h3>
-                <p className="text-4xl font-light text-goatzy-dark mb-1">{giftStats.upsell_hay_feeder.unique}</p>
-                <p className="text-xs text-gray-500">Unique clicks ({giftStats.upsell_hay_feeder.total} total)</p>
-              </div>
-
-              <div className="bg-white p-6 border border-goatzy-pale rounded-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <svg className="w-12 h-12 text-goatzy-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-                <h3 className="text-sm font-light tracking-wide text-gray-600 mb-2">Wall Feeder Upsell</h3>
-                <p className="text-4xl font-light text-goatzy-dark mb-1">{giftStats.upsell_wall_feeder.unique}</p>
-                <p className="text-xs text-gray-500">Unique clicks ({giftStats.upsell_wall_feeder.total} total)</p>
-              </div>
+              ))}
             </div>
           </div>
         )}

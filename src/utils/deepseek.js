@@ -1,9 +1,9 @@
 /**
- * DeepSeek AI API Integration - Goatzy US Campaign
- * Generates Amazon product reviews for Goat Stand
+ * DeepSeek AI API Integration - Goatzy US Campaign (Multi-Product)
+ * Generates Amazon product reviews using per-product prompts
  */
 
-import { fetchAllConfig } from './config';
+import { fetchGlobalConfig } from './config';
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
 const MODEL = 'deepseek-chat';
@@ -14,20 +14,17 @@ const DEFAULT_SYSTEM_PROMPT = `You write authentic Amazon reviews as a real pers
  * Generate a review using DeepSeek AI
  * @param {number} stars - Number of stars (1-5)
  * @param {string} tone - Review tone (Enthusiastic/Helpful/Detailed/Honest)
+ * @param {string} [productPrompt] - Optional per-product system prompt
  * @returns {Promise<string>} - Generated review text
  */
-export async function generateReview(stars, tone) {
-  // Fetch config for API key and system prompt
+export async function generateReview(stars, tone, productPrompt) {
   let apiKey = process.env.REACT_APP_DEEPSEEK_API_KEY || '';
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT;
+  let systemPrompt = productPrompt || DEFAULT_SYSTEM_PROMPT;
 
   try {
-    const config = await fetchAllConfig();
-    if (config?.deepseek?.api_key) {
-      apiKey = config.deepseek.api_key;
-    }
-    if (config?.deepseek?.system_prompt) {
-      systemPrompt = config.deepseek.system_prompt;
+    const globalConfig = await fetchGlobalConfig();
+    if (globalConfig?.api_key) {
+      apiKey = globalConfig.api_key;
     }
   } catch (e) {
     console.warn('Could not fetch config, using defaults');

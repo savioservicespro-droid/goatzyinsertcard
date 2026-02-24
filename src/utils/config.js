@@ -1,91 +1,153 @@
 /**
- * Site Configuration Utility - Goatzy US Campaign
- * Fetches and updates configuration from Supabase site_config table
+ * Site Configuration Utility - Goatzy US Campaign (Multi-Product)
+ * Fetches and updates per-product configuration from Supabase site_config table
  */
 
 import { supabase } from './supabase';
 
-// In-memory cache
-let configCache = null;
-let cacheTimestamp = 0;
+// Per-product cache: { "goat-stand": { data, timestamp }, ... }
+let productConfigCache = {};
+let globalConfigCache = null;
+let globalCacheTimestamp = 0;
 const CACHE_TTL = 60000; // 1 minute
 
 const DEFAULT_SYSTEM_PROMPT = `You write authentic Amazon reviews as a real person who bought a Goatzy Goat Stand with Adjustable Headpiece & Legs for their farm. This is a heavy-duty galvanized steel goat milking stand with wheels, feeder bowl, removable rails, and adjustable headpiece that fits Nigerian Dwarf, Boer, and dairy goats. It supports up to 600 lbs and is used for milking, hoof trimming, grooming, and shearing. Write like you're texting a friend - casual, natural, and genuine. Keep it SHORT (250-400 characters max). No marketing language, just authentic thoughts. Write in ENGLISH.`;
 
-/**
- * Hardcoded defaults used as fallback
- */
-export function getDefaultConfig() {
+function getDefaultGlobalConfig() {
   return {
-    deepseek: {
-      api_key: '',
-      system_prompt: DEFAULT_SYSTEM_PROMPT
-    },
-    promo: {
-      hay_feeder_code: 'GOATZY5',
-      hay_feeder_discount: '5% OFF',
-      wall_feeder_code: 'GOATZY5',
-      wall_feeder_discount: '5% OFF'
-    },
-    welcome_text: {
-      title: 'Thank you for your purchase!',
-      paragraph1: "Welcome to the Goatzy family! Whether you're milking, trimming hooves, or grooming, your new Goat Stand is built to make farm life easier.",
-      paragraph2: "We've prepared something special just for you: an exclusive assembly guide and some great deals to complete your setup!",
-      tagline: "Designed by breeders, made for breeders.\n- Team Goatzy"
-    },
-    video: {
-      youtube_id: 'PwDO6Hiqtk4'
-    }
+    api_key: '',
+    products_list: [{ slug: 'goat-stand', name: 'Goat Stand' }]
+  };
+}
+
+function getDefaultProductConfig(slug) {
+  if (slug === 'goat-stand') {
+    return {
+      slug: 'goat-stand',
+      name: 'Goat Stand',
+      deepseek_prompt: DEFAULT_SYSTEM_PROMPT,
+      welcome_text: {
+        title: 'Thank you for your purchase!',
+        paragraph1: "Welcome to the Goatzy family! Whether you're milking, trimming hooves, or grooming, your new Goat Stand is built to make farm life easier.",
+        paragraph2: "We've prepared something special just for you: an exclusive assembly guide and some great deals to complete your setup!",
+        tagline: "Designed by breeders, made for breeders.\n- Team Goatzy"
+      },
+      video: { youtube_id: 'PwDO6Hiqtk4' },
+      amazon_review_url: 'https://amazon.com/review/create-review',
+      upsells: []
+    };
+  }
+  return {
+    slug: slug,
+    name: slug,
+    deepseek_prompt: '',
+    welcome_text: { title: 'Thank you for your purchase!', paragraph1: '', paragraph2: '', tagline: '' },
+    video: { youtube_id: '' },
+    amazon_review_url: '',
+    upsells: []
   };
 }
 
 /**
- * Fetch all config from site_config table
+ * Fetch global config (API key + products list)
  */
-export async function fetchAllConfig() {
-  if (configCache && (Date.now() - cacheTimestamp < CACHE_TTL)) {
-    return configCache;
+export async function fetchGlobalConfig() {
+  if (globalConfigCache && (Date.now() - globalCacheTimestamp < CACHE_TTL)) {
+    return globalConfigCache;
   }
 
   if (!supabase) {
-    return getDefaultConfig();
+    return getDefaultGlobalConfig();
   }
 
   try {
     const { data, error } = await supabase
       .from('site_config')
-      .select('config_key, config_value');
+      .select('config_key, config_value')
+      .in('config_key', ['deepseek_api_key', 'products_list']);
 
-    if (error) {
-      console.error('Error fetching config:', error);
-      return getDefaultConfig();
-    }
+    if (error) throw error;
 
     const config = {};
     (data || []).forEach(row => {
       config[row.config_key] = row.config_value;
     });
 
-    const defaults = getDefaultConfig();
-    const merged = { ...defaults, ...config };
-
-    configCache = merged;
-    cacheTimestamp = Date.now();
-    return merged;
+    globalConfigCache = {
+      api_key: config.deepseek_api_key?.api_key || '',
+      products_list: config.products_list || [{ slug: 'goat-stand', name: 'Goat Stand' }]
+    };
+    globalCacheTimestamp = Date.now();
+    return globalConfigCache;
   } catch (err) {
-    console.error('Error fetching config:', err);
-    return getDefaultConfig();
+    console.error('Error fetching global config:', err);
+    return getDefaultGlobalConfig();
   }
 }
 
 /**
- * Update a specific config key
+ * Fetch the products list
  */
-export async function updateConfig(configKey, configValue) {
-  if (!supabase) {
-    console.warn('Supabase not configured');
-    return;
+export async function fetchProductsList() {
+  const global = await fetchGlobalConfig();
+  return global.products_list;
+}
+
+/**
+ * Fetch config for a specific product
+ */
+export async function fetchProductConfig(productSlug) {
+  const cached = productConfigCache[productSlug];
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+    return cached.data;
   }
+
+  if (!supabase) {
+    return getDefaultProductConfig(productSlug);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('site_config')
+      .select('config_value')
+      .eq('config_key', `product:${productSlug}`)
+      .single();
+
+    if (error || !data) {
+      return getDefaultProductConfig(productSlug);
+    }
+
+    const productConfig = data.config_value;
+    productConfigCache[productSlug] = { data: productConfig, timestamp: Date.now() };
+    return productConfig;
+  } catch (err) {
+    console.error(`Error fetching config for ${productSlug}:`, err);
+    return getDefaultProductConfig(productSlug);
+  }
+}
+
+/**
+ * Update a product's full config
+ */
+export async function updateProductConfig(productSlug, configValue) {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from('site_config')
+    .upsert(
+      { config_key: `product:${productSlug}`, config_value: configValue, updated_at: new Date().toISOString() },
+      { onConflict: 'config_key' }
+    );
+
+  if (error) throw new Error('Failed to save product configuration');
+  delete productConfigCache[productSlug];
+}
+
+/**
+ * Update global config (API key or products list)
+ */
+export async function updateGlobalConfig(configKey, configValue) {
+  if (!supabase) return;
 
   const { error } = await supabase
     .from('site_config')
@@ -94,12 +156,22 @@ export async function updateConfig(configKey, configValue) {
       { onConflict: 'config_key' }
     );
 
-  if (error) {
-    console.error('Error updating config:', error);
-    throw new Error('Failed to save configuration');
-  }
+  if (error) throw new Error('Failed to save configuration');
+  globalConfigCache = null;
+  globalCacheTimestamp = 0;
+}
 
-  // Invalidate cache
-  configCache = null;
-  cacheTimestamp = 0;
+/**
+ * Backward-compatible exports
+ */
+export async function fetchAllConfig() {
+  return fetchProductConfig('goat-stand');
+}
+
+export async function updateConfig(configKey, configValue) {
+  return updateGlobalConfig(configKey, configValue);
+}
+
+export function getDefaultConfig() {
+  return getDefaultProductConfig('goat-stand');
 }

@@ -23,9 +23,10 @@ export const supabase = isSupabaseConfigured
 /**
  * Create initial customer submission
  * @param {Object} customerData - Customer information
+ * @param {string} [productSlug='goat-stand'] - Product slug
  * @returns {Promise<string>} - Submission ID
  */
-export async function createSubmission(customerData) {
+export async function createSubmission(customerData, productSlug = 'goat-stand') {
   if (!supabase) {
     console.warn('Supabase not configured. Running in demo mode.');
     return 'demo-' + Math.random().toString(36).substr(2, 9);
@@ -39,7 +40,8 @@ export async function createSubmission(customerData) {
         last_name: customerData.lastName,
         email: customerData.email,
         opt_in_surveys: customerData.optInSurveys || false,
-        region: 'US'
+        region: 'US',
+        product_slug: productSlug
       }
     ])
     .select()
@@ -124,9 +126,10 @@ export async function trackGiftsClaimed(id) {
  * Track individual gift/action
  * @param {string} customerId - Customer submission ID
  * @param {string} giftType - Type: 'assembly_video' | 'upsell_hay_feeder' | 'upsell_wall_feeder'
+ * @param {string} [productSlug='goat-stand'] - Product slug
  */
-export async function trackGiftDownload(customerId, giftType) {
-  console.log('trackGiftDownload called with:', { customerId, giftType });
+export async function trackGiftDownload(customerId, giftType, productSlug = 'goat-stand') {
+  console.log('trackGiftDownload called with:', { customerId, giftType, productSlug });
 
   if (!supabase) {
     console.warn('Supabase not configured. Skipping gift download tracking.');
@@ -138,7 +141,8 @@ export async function trackGiftDownload(customerId, giftType) {
     .insert({
       customer_id: customerId,
       gift_type: giftType,
-      region: 'US'
+      region: 'US',
+      product_slug: productSlug
     })
     .select();
 

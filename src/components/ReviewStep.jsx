@@ -5,7 +5,7 @@ import { generateReview } from '../utils/deepseek';
  * ReviewStep Component - Goatzy US Campaign
  * AI-powered review generator for Goat Stand
  */
-const ReviewStep = ({ onAmazonRedirect, onClaimGifts, onReviewGenerated, onBack }) => {
+const ReviewStep = ({ onAmazonRedirect, onClaimGifts, onReviewGenerated, onBack, deepseekPrompt }) => {
   const [stars, setStars] = useState(5);
   const [tone, setTone] = useState('Enthusiastic');
   const [generatedReview, setGeneratedReview] = useState('');
@@ -30,7 +30,7 @@ const ReviewStep = ({ onAmazonRedirect, onClaimGifts, onReviewGenerated, onBack 
     setCopySuccess(false);
 
     try {
-      const review = await generateReview(stars, tone);
+      const review = await generateReview(stars, tone, deepseekPrompt);
       setGeneratedReview(review);
 
       if (onReviewGenerated) {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import WelcomeStep from './components/WelcomeStep';
 import InfoStep from './components/InfoStep';
 import ReviewStep from './components/ReviewStep';
@@ -14,60 +14,17 @@ import {
   trackAmazonVisit,
   trackGiftsClaimed
 } from './utils/supabase';
-import { fetchAllConfig } from './utils/config';
+import { fetchProductConfig } from './utils/config';
 
 /**
- * Static Upsell Product Data (promo codes are overridden by config)
- */
-const STATIC_PRODUCTS = {
-  hayFeeder: {
-    name: 'Hay Feeder for Goats with Roof & Wheels, 2 in 1 Goat Feeder Trough 50 Gallon Hay Rack & 20 Gallon Grain',
-    headline: 'Complete Your Farm Setup',
-    subheadline: 'Save time feeding your herd with this 2-in-1 hay & grain feeder',
-    price: '179.99',
-    imageUrl: 'https://m.media-amazon.com/images/I/71s6vIPLFDL._AC_SL1484_.jpg',
-    amazonUrl: 'https://www.amazon.com/GOATZY-Feeder-Wheels-Galvanized-Livestock/dp/B0FLWKK4RG',
-    trackingId: 'upsell_hay_feeder',
-    promoCode: 'GOATZY5',
-    promoDiscount: '5% OFF',
-    rating: 3.8,
-    reviewCount: 58,
-    features: [
-      '50 gallon hay rack + 20 gallon grain trough',
-      'Weatherproof roof keeps hay dry',
-      'Locking wheels for easy transport',
-      'Galvanized steel construction',
-      'Fits goats, sheep, horses & cattle'
-    ]
-  },
-  wallFeeder: {
-    name: 'Wall Mount Hay Feeder for Goats, Covered Hay Feeder with Roof, 2in1 25 Gallon Hay Rack & Grain',
-    headline: 'One More Thing...',
-    subheadline: 'Keep hay organized and dry with this space-saving wall mount feeder',
-    price: '109.99',
-    imageUrl: 'https://m.media-amazon.com/images/I/71HsodrUALL._AC_SL1280_.jpg',
-    amazonUrl: 'https://www.amazon.com/Feeder-Covered-Horses-Hanging-Galvanized/dp/B0FLWKYBNP',
-    trackingId: 'upsell_wall_feeder',
-    promoCode: 'GOATZY5',
-    promoDiscount: '5% OFF',
-    rating: 4.4,
-    reviewCount: 59,
-    features: [
-      '25 gallon hay rack + grain compartment',
-      'Protective roof keeps feed dry',
-      'Hanging hook for easy fence mount',
-      'Galvanized steel resists rust & weather',
-      'Perfect for goats, sheep & cattle'
-    ]
-  }
-};
-
-/**
- * CustomerFlow Component
- * Manages the 6-step customer journey:
- * 1. Welcome → 2. Info → 3. Review → 4. Upsell 1 → 5. Upsell 2 → 6. Video
+ * CustomerFlow Component - Multi-Product
+ * Dynamic step count based on product upsells:
+ * 1=Welcome, 2=Info, 3=Review, 4...(3+N)=Upsells, (4+N)=Video
  */
 function CustomerFlow() {
+  const { productSlug } = useParams();
+  const slug = productSlug || 'goat-stand';
+
   const [currentStep, setCurrentStep] = useState(1);
   const [customerData, setCustomerData] = useState({
     firstName: '',
@@ -78,27 +35,18 @@ function CustomerFlow() {
   const [submissionId, setSubmissionId] = useState(null);
   const [showAmazonModal, setShowAmazonModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [siteConfig, setSiteConfig] = useState(null);
+  const [productConfig, setProductConfig] = useState(null);
 
   useEffect(() => {
-    fetchAllConfig().then(config => setSiteConfig(config));
-  }, []);
+    fetchProductConfig(slug).then(config => setProductConfig(config));
+  }, [slug]);
 
-  const upsellProducts = useMemo(() => {
-    const promo = siteConfig?.promo;
-    return {
-      hayFeeder: {
-        ...STATIC_PRODUCTS.hayFeeder,
-        ...(promo ? { promoCode: promo.hay_feeder_code, promoDiscount: promo.hay_feeder_discount } : {})
-      },
-      wallFeeder: {
-        ...STATIC_PRODUCTS.wallFeeder,
-        ...(promo ? { promoCode: promo.wall_feeder_code, promoDiscount: promo.wall_feeder_discount } : {})
-      }
-    };
-  }, [siteConfig]);
+  const upsells = productConfig?.upsells || [];
+  const upsellCount = upsells.length;
+  const videoStep = 4 + upsellCount; // Video is after all upsells
 
   const amazonReviewUrl =
+    productConfig?.amazon_review_url ||
     process.env.REACT_APP_AMAZON_REVIEW_URL ||
     'https://amazon.com/review/create-review';
 
@@ -113,7 +61,7 @@ function CustomerFlow() {
     setCustomerData(formData);
 
     try {
-      const id = await createSubmission(formData);
+      const id = await createSubmission(formData, slug);
       setSubmissionId(id);
       localStorage.setItem('submissionId', id);
       setCurrentStep(3);
@@ -154,24 +102,19 @@ function CustomerFlow() {
     }
   };
 
-  // Step 3 → Step 4 (Upsell 1)
+  // Step 3 → Step 4 (first upsell or video)
   const handleClaimGifts = () => {
     setCurrentStep(4);
   };
 
-  // Skip directly to video page (Step 6)
+  // Skip directly to video page
   const handleSkipToGifts = () => {
-    setCurrentStep(6);
+    setCurrentStep(videoStep);
   };
 
-  // Step 4 → Step 5 (Upsell 2)
-  const handleUpsell1Continue = () => {
-    setCurrentStep(5);
-  };
-
-  // Step 5 → Step 6 (Video)
-  const handleUpsell2Continue = () => {
-    setCurrentStep(6);
+  // Upsell N → next step
+  const handleUpsellContinue = () => {
+    setCurrentStep(prev => prev + 1);
   };
 
   // Back navigation
@@ -189,6 +132,11 @@ function CustomerFlow() {
       }
     }
   };
+
+  // Determine which upsell index we're on (step 4 = upsell 0, step 5 = upsell 1, etc.)
+  const currentUpsellIndex = currentStep - 4;
+  const isUpsellStep = currentStep >= 4 && currentStep < videoStep;
+  const isVideoStep = currentStep >= videoStep;
 
   return (
     <div className="min-h-screen bg-goatzy-bg text-goatzy-dark">
@@ -215,7 +163,7 @@ function CustomerFlow() {
         <WelcomeStep
           onContinue={handleWelcomeContinue}
           onSkipToGifts={handleSkipToGifts}
-          config={siteConfig?.welcome_text}
+          config={productConfig?.welcome_text}
         />
       )}
 
@@ -236,35 +184,27 @@ function CustomerFlow() {
           onClaimGifts={handleClaimGifts}
           onReviewGenerated={handleReviewGenerated}
           onBack={handleBack}
+          deepseekPrompt={productConfig?.deepseek_prompt}
         />
       )}
 
-      {/* Step 4: Upsell 1 - Hay Feeder */}
-      {currentStep === 4 && (
+      {/* Dynamic Upsell Steps */}
+      {isUpsellStep && upsells[currentUpsellIndex] && (
         <UpsellStep
-          product={upsellProducts.hayFeeder}
-          stepLabel="Special Offer 1 of 2"
-          onContinue={handleUpsell1Continue}
+          product={upsells[currentUpsellIndex]}
+          stepLabel={`Special Offer ${currentUpsellIndex + 1} of ${upsellCount}`}
+          onContinue={handleUpsellContinue}
           onBack={handleBack}
+          productSlug={slug}
         />
       )}
 
-      {/* Step 5: Upsell 2 - Wall Mount Feeder */}
-      {currentStep === 5 && (
-        <UpsellStep
-          product={upsellProducts.wallFeeder}
-          stepLabel="Special Offer 2 of 2"
-          onContinue={handleUpsell2Continue}
-          onBack={handleBack}
-        />
-      )}
-
-      {/* Step 6: Assembly Video */}
-      {currentStep === 6 && (
+      {/* Video Step (after all upsells, or directly if no upsells) */}
+      {isVideoStep && (
         <VideoStep
           onGiftsClaimed={handleGiftsClaimed}
-          onBack={handleBack}
-          videoId={siteConfig?.video?.youtube_id}
+          onBack={upsellCount > 0 ? handleBack : undefined}
+          videoId={productConfig?.video?.youtube_id}
         />
       )}
 
@@ -363,16 +303,18 @@ function AdminAuthGate({ children }) {
 
 /**
  * DirectVideoPage Component
- * Standalone video page accessible via direct link
+ * Standalone video page accessible via /:productSlug/gifts
  */
 function DirectVideoPage() {
+  const { productSlug } = useParams();
+  const slug = productSlug || 'goat-stand';
   const [videoId, setVideoId] = useState(null);
 
   useEffect(() => {
-    fetchAllConfig().then(config => {
+    fetchProductConfig(slug).then(config => {
       if (config?.video?.youtube_id) setVideoId(config.video.youtube_id);
     });
-  }, []);
+  }, [slug]);
 
   return (
     <div className="min-h-screen bg-goatzy-bg text-goatzy-dark">
@@ -382,15 +324,14 @@ function DirectVideoPage() {
 }
 
 /**
- * Main App Component with Routing
+ * Main App Component with Multi-Product Routing
  */
 function App() {
   const navigate = useNavigate();
 
   return (
     <Routes>
-      <Route path="/" element={<CustomerFlow />} />
-      <Route path="/gifts" element={<DirectVideoPage />} />
+      <Route path="/" element={<Navigate to="/goat-stand" replace />} />
       <Route path="/admin" element={
         <AdminAuthGate>
           <AdminDashboard />
@@ -401,6 +342,8 @@ function App() {
           <AdminConfig onBack={() => navigate('/admin')} />
         </AdminAuthGate>
       } />
+      <Route path="/:productSlug/gifts" element={<DirectVideoPage />} />
+      <Route path="/:productSlug" element={<CustomerFlow />} />
     </Routes>
   );
 }
