@@ -1,0 +1,17 @@
+# Netlify Configuration
+[build]
+  command = "npm run build"
+  publish = "build"
+
+# Environment variables (configure these in Netlify UI)
+# REACT_APP_SUPABASE_URL
+# REACT_APP_SUPABASE_ANON_KEY
+# REACT_APP_DEEPSEEK_API_KEY
+# REACT_APP_AMAZON_REVIEW_URL
+# REACT_APP_ADMIN_PASSWORD
+
+# Redirect rules
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
