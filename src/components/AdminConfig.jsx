@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchGlobalConfig,
   fetchProductConfig,
@@ -10,6 +10,7 @@ import {
 /**
  * AdminConfig Component - Goatzy US Campaign (Multi-Product)
  * Global settings (API key) + per-product config (prompt, welcome, video, upsells)
+ * Auto-saves changes with debounce (1.5s for product, 2s for API key)
  */
 const AdminConfig = ({ onBack }) => {
   // Global state
@@ -35,6 +36,13 @@ const AdminConfig = ({ onBack }) => {
   const [newProductSlug, setNewProductSlug] = useState('');
   const [newProductName, setNewProductName] = useState('');
 
+  // Auto-save refs
+  const autoSaveTimerRef = useRef(null);
+  const autoSaveEnabledRef = useRef(false);
+  const enableAutoSaveTimerRef = useRef(null);
+  const apiKeyAutoSaveTimerRef = useRef(null);
+  const apiKeyLoadedRef = useRef(false);
+
   // Load global config on mount
   useEffect(() => {
     loadGlobal();
@@ -52,6 +60,8 @@ const AdminConfig = ({ onBack }) => {
       if (products && products.length > 0) {
         setSelectedSlug(products[0].slug);
       }
+      // Enable API key auto-save after initial load settles
+      setTimeout(() => { apiKeyLoadedRef.current = true; }, 600);
     } catch (err) {
       setError('Failed to load configuration');
     } finally {
@@ -62,6 +72,11 @@ const AdminConfig = ({ onBack }) => {
   // Load product config when selected slug changes
   const loadProduct = useCallback(async (slug) => {
     if (!slug) return;
+    // Disable auto-save while loading to prevent saving stale/initial data
+    autoSaveEnabledRef.current = false;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (enableAutoSaveTimerRef.current) clearTimeout(enableAutoSaveTimerRef.current);
+
     try {
       const config = await fetchProductConfig(slug);
       setProductName(config.name || slug);
@@ -73,6 +88,11 @@ const AdminConfig = ({ onBack }) => {
     } catch (err) {
       setError(`Failed to load config for ${slug}`);
     }
+
+    // Re-enable auto-save after React state has settled
+    enableAutoSaveTimerRef.current = setTimeout(() => {
+      autoSaveEnabledRef.current = true;
+    }, 600);
   }, []);
 
   useEffect(() => {
@@ -81,46 +101,74 @@ const AdminConfig = ({ onBack }) => {
     }
   }, [selectedSlug, loadProduct]);
 
-  // Save global config (API key)
-  const handleSaveGlobal = async () => {
-    setIsSaving(true);
-    setError('');
-    setSaveSuccess('');
-    try {
-      await updateGlobalConfig('deepseek_api_key', { api_key: apiKey });
-      setSaveSuccess('API key saved!');
-      setTimeout(() => setSaveSuccess(''), 3000);
-    } catch (err) {
-      setError('Failed to save API key: ' + err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  // ---- Auto-save: Product config (debounced 1.5s) ----
+  useEffect(() => {
+    if (!autoSaveEnabledRef.current || !selectedSlug) return;
 
-  // Save product config
-  const handleSaveProduct = async () => {
-    setIsSaving(true);
-    setError('');
-    setSaveSuccess('');
-    try {
-      const configValue = {
-        slug: selectedSlug,
-        name: productName,
-        deepseek_prompt: deepseekPrompt,
-        welcome_text: welcomeText,
-        video: videoConfig,
-        amazon_review_url: amazonReviewUrl,
-        upsells: upsells
-      };
-      await updateProductConfig(selectedSlug, configValue);
-      setSaveSuccess(`${productName} config saved!`);
-      setTimeout(() => setSaveSuccess(''), 3000);
-    } catch (err) {
-      setError('Failed to save product config: ' + err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      setError('');
+      try {
+        await updateProductConfig(selectedSlug, {
+          slug: selectedSlug,
+          name: productName,
+          deepseek_prompt: deepseekPrompt,
+          welcome_text: welcomeText,
+          video: videoConfig,
+          amazon_review_url: amazonReviewUrl,
+          upsells: upsells
+        });
+        setSaveSuccess('Auto-saved!');
+        setTimeout(() => setSaveSuccess(''), 2000);
+      } catch (err) {
+        setError('Auto-save failed: ' + err.message);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlug, productName, deepseekPrompt, welcomeText, videoConfig, amazonReviewUrl, upsells]);
+
+  // ---- Auto-save: API key (debounced 2s) ----
+  useEffect(() => {
+    if (!apiKeyLoadedRef.current) return;
+
+    if (apiKeyAutoSaveTimerRef.current) clearTimeout(apiKeyAutoSaveTimerRef.current);
+
+    apiKeyAutoSaveTimerRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      setError('');
+      try {
+        await updateGlobalConfig('deepseek_api_key', { api_key: apiKey });
+        setSaveSuccess('API key saved!');
+        setTimeout(() => setSaveSuccess(''), 2000);
+      } catch (err) {
+        setError('Failed to save API key: ' + err.message);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (apiKeyAutoSaveTimerRef.current) clearTimeout(apiKeyAutoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (enableAutoSaveTimerRef.current) clearTimeout(enableAutoSaveTimerRef.current);
+      if (apiKeyAutoSaveTimerRef.current) clearTimeout(apiKeyAutoSaveTimerRef.current);
+    };
+  }, []);
 
   // Add new product
   const handleAddProduct = async () => {
@@ -190,10 +238,6 @@ const AdminConfig = ({ onBack }) => {
     setUpsells(updated);
   };
 
-  const maskedKey = apiKey
-    ? '\u2022'.repeat(Math.max(0, apiKey.length - 4)) + apiKey.slice(-4)
-    : '';
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-goatzy-bg">
@@ -217,6 +261,7 @@ const AdminConfig = ({ onBack }) => {
             Site Settings
           </h1>
           <p className="text-gray-600 font-light">Configure global and per-product settings</p>
+          <p className="text-xs text-gray-400 mt-1">Changes are saved automatically</p>
         </div>
 
         {/* Status messages */}
@@ -225,9 +270,30 @@ const AdminConfig = ({ onBack }) => {
             {error}
           </div>
         )}
-        {saveSuccess && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-            {saveSuccess}
+
+        {/* Auto-save indicator (floating) */}
+        {(isSaving || saveSuccess) && (
+          <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-light transition-all duration-300 ${
+            isSaving
+              ? 'bg-goatzy-dark text-white'
+              : 'bg-green-50 border border-green-200 text-green-700'
+          }`}>
+            {isSaving ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {saveSuccess}
+              </span>
+            )}
           </div>
         )}
 
@@ -248,9 +314,8 @@ const AdminConfig = ({ onBack }) => {
             <div className="relative mb-3">
               <input
                 type={showApiKey ? 'text' : 'password'}
-                value={showApiKey ? apiKey : maskedKey}
+                value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                readOnly={!showApiKey}
                 placeholder="Enter your DeepSeek API key"
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy transition-colors font-mono text-sm"
               />
@@ -271,15 +336,7 @@ const AdminConfig = ({ onBack }) => {
                 )}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mb-4">Shared across all products. Falls back to environment variable if empty.</p>
-
-            <button
-              onClick={handleSaveGlobal}
-              disabled={isSaving}
-              className="px-6 py-2 bg-goatzy-dark text-white text-sm font-light rounded-lg hover:bg-goatzy transition-all duration-300 disabled:bg-gray-300"
-            >
-              {isSaving ? 'Saving...' : 'Save API Key'}
-            </button>
+            <p className="text-xs text-gray-500">Shared across all products. Saved automatically when you type.</p>
           </div>
         </div>
 
@@ -672,20 +729,6 @@ const AdminConfig = ({ onBack }) => {
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Save Product Button */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={handleSaveProduct}
-                  disabled={isSaving}
-                  className="px-10 py-4 bg-goatzy-dark text-white text-lg font-light tracking-wide rounded-lg
-                           hover:bg-goatzy transition-all duration-300
-                           focus:outline-none focus:ring-2 focus:ring-goatzy-accent focus:ring-offset-2
-                           disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? 'Saving...' : `Save ${productName} Settings`}
-                </button>
               </div>
             </div>
           )}
