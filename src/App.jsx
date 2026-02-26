@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import WelcomeStep from './components/WelcomeStep';
 import InfoStep from './components/InfoStep';
@@ -15,6 +15,7 @@ import {
   trackGiftsClaimed
 } from './utils/supabase';
 import { fetchProductConfig } from './utils/config';
+import { sendEbookEmail } from './utils/email';
 
 /**
  * CustomerFlow Component - Multi-Product
@@ -37,9 +38,20 @@ function CustomerFlow() {
   const [isLoading, setIsLoading] = useState(false);
   const [productConfig, setProductConfig] = useState(null);
 
+  // Email sending refs
+  const emailTimerRef = useRef(null);
+  const emailSentRef = useRef(false);
+
   useEffect(() => {
     fetchProductConfig(slug).then(config => setProductConfig(config));
   }, [slug]);
+
+  // Cleanup email timer on unmount
+  useEffect(() => {
+    return () => {
+      if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
+    };
+  }, []);
 
   const upsells = productConfig?.upsells || [];
   const upsellCount = upsells.length;
@@ -55,6 +67,14 @@ function CustomerFlow() {
     setCurrentStep(2);
   };
 
+  // Send ebook email (idempotent - safe to call multiple times)
+  const triggerEbookEmail = (id) => {
+    if (emailSentRef.current) return;
+    emailSentRef.current = true;
+    if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
+    sendEbookEmail(id, slug).catch(err => console.error('Email send error:', err));
+  };
+
   // Step 2 → Step 3
   const handleInfoContinue = async (formData) => {
     setIsLoading(true);
@@ -64,6 +84,13 @@ function CustomerFlow() {
       const id = await createSubmission(formData, slug);
       setSubmissionId(id);
       localStorage.setItem('submissionId', id);
+
+      // Start 5-minute fallback timer for email
+      emailSentRef.current = false;
+      emailTimerRef.current = setTimeout(() => {
+        triggerEbookEmail(id);
+      }, 5 * 60 * 1000);
+
       setCurrentStep(3);
     } catch (error) {
       alert('Error saving your information. Please try again.');
@@ -122,7 +149,7 @@ function CustomerFlow() {
     setCurrentStep(prev => Math.max(1, prev - 1));
   };
 
-  // Video page viewed
+  // Video page viewed - send ebook email immediately
   const handleGiftsClaimed = async () => {
     if (submissionId) {
       try {
@@ -130,6 +157,8 @@ function CustomerFlow() {
       } catch (error) {
         console.error('Error tracking gifts claimed:', error);
       }
+      // Send ebook email now (cancels 5-min timer if still pending)
+      triggerEbookEmail(submissionId);
     }
   };
 

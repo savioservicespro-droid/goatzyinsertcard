@@ -29,6 +29,11 @@ const AdminDashboard = () => {
   const [productFilter, setProductFilter] = useState('all');
   const [productsList, setProductsList] = useState([]);
 
+  // Email tracking state
+  const [emailStats, setEmailStats] = useState(null);
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [isSendingPending, setIsSendingPending] = useState(false);
+
   // Review verification state
   const [amazonReviews, setAmazonReviews] = useState(null);
   const [reviewMatches, setReviewMatches] = useState(null);
@@ -186,6 +191,7 @@ const AdminDashboard = () => {
         setCustomers(mockCustomers);
         setAnalytics(calculateAnalytics(mockCustomers));
         await fetchGiftStats();
+        await fetchEmailStats();
         setIsLoading(false);
         return;
       }
@@ -204,6 +210,7 @@ const AdminDashboard = () => {
       setCustomers(data || []);
       setAnalytics(calculateAnalytics(data || []));
       await fetchGiftStats();
+      await fetchEmailStats();
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load dashboard data. ' + err.message);
@@ -262,6 +269,80 @@ const AdminDashboard = () => {
       console.error('Error fetching gift stats:', err);
       setGiftStats({});
     }
+  };
+
+  // --- Email Tracking ---
+
+  const fetchEmailStats = async () => {
+    if (!supabase) {
+      setEmailStats({ sent: 3, failed: 1, pending: 2, total: 6 });
+      setEmailLogs([]);
+      return;
+    }
+
+    try {
+      // Fetch email logs
+      let logsQuery = supabase
+        .from('email_logs')
+        .select('id, customer_id, product_slug, status, resend_id, error_message, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (productFilter !== 'all') {
+        logsQuery = logsQuery.eq('product_slug', productFilter);
+      }
+      const { data: logs } = await logsQuery;
+      setEmailLogs(logs || []);
+
+      // Calculate stats from customer_submissions
+      const sent = customers.filter(c => c.email_sent).length;
+      const total = customers.length;
+      const failed = (logs || []).filter(l => l.status === 'failed').length;
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const pending = customers.filter(c => !c.email_sent && c.created_at < fiveMinAgo).length;
+
+      setEmailStats({ sent, failed, pending, total });
+    } catch (err) {
+      console.error('Error fetching email stats:', err);
+      setEmailStats(null);
+    }
+  };
+
+  const handleSendPendingEmails = async () => {
+    if (!supabase) return;
+
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const pendingCustomers = customers.filter(c => !c.email_sent && c.created_at < fiveMinAgo);
+
+    if (pendingCustomers.length === 0) {
+      alert('No pending emails to send.');
+      return;
+    }
+
+    if (!window.confirm(`Send ebook emails to ${pendingCustomers.length} customer(s)?`)) return;
+
+    setIsSendingPending(true);
+    const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const customer of pendingCustomers) {
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/send-ebook-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: customer.id, product_slug: customer.product_slug || 'goat-stand' })
+        });
+        const data = await res.json();
+        if (data.success) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsSendingPending(false);
+    alert(`Done! ${successCount} sent, ${failCount} failed.`);
+    await fetchCustomersAndAnalytics();
   };
 
   // --- Review Verification ---
@@ -777,6 +858,100 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* Email Tracking */}
+        {emailStats && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-light tracking-wide text-goatzy-dark">Email Tracking</h2>
+              <button
+                onClick={handleSendPendingEmails}
+                disabled={isSendingPending || (emailStats.pending || 0) === 0}
+                className="px-4 py-2 bg-goatzy-dark text-white text-sm font-light rounded-lg hover:bg-goatzy transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSendingPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Send Pending ({emailStats.pending || 0})
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 border border-goatzy-pale rounded-xl text-center">
+                <p className="text-3xl font-light text-goatzy-dark">{emailStats.sent}</p>
+                <p className="text-xs text-gray-500 mt-1">Emails Sent</p>
+              </div>
+              <div className="bg-white p-4 border border-goatzy-pale rounded-xl text-center">
+                <p className="text-3xl font-light text-goatzy">{emailStats.total > 0 ? ((emailStats.sent / emailStats.total) * 100).toFixed(0) : 0}%</p>
+                <p className="text-xs text-gray-500 mt-1">Send Rate</p>
+              </div>
+              <div className="bg-amber-50 p-4 border border-amber-200 rounded-xl text-center">
+                <p className="text-3xl font-light text-amber-600">{emailStats.pending || 0}</p>
+                <p className="text-xs text-amber-600 mt-1">Pending (5min+)</p>
+              </div>
+              <div className="bg-red-50 p-4 border border-red-200 rounded-xl text-center">
+                <p className="text-3xl font-light text-red-600">{emailStats.failed}</p>
+                <p className="text-xs text-red-500 mt-1">Failed</p>
+              </div>
+            </div>
+
+            {/* Recent Email Logs */}
+            {emailLogs.length > 0 && (
+              <div className="bg-white border border-goatzy-pale rounded-xl overflow-hidden">
+                <div className="px-6 py-3 border-b border-goatzy-pale">
+                  <h3 className="text-sm font-light tracking-wide text-gray-600">Recent Email Logs</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-goatzy-pale bg-goatzy-bg">
+                        <th className="px-4 py-2 text-left text-xs font-light tracking-wide text-gray-600">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-light tracking-wide text-gray-600">Product</th>
+                        <th className="px-4 py-2 text-center text-xs font-light tracking-wide text-gray-600">Status</th>
+                        <th className="px-4 py-2 text-left text-xs font-light tracking-wide text-gray-600">Resend ID</th>
+                        <th className="px-4 py-2 text-left text-xs font-light tracking-wide text-gray-600">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emailLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-gray-100 hover:bg-goatzy-bg">
+                          <td className="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-700">{log.product_slug}</td>
+                          <td className="px-4 py-2 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-light ${
+                              log.status === 'sent' ? 'bg-green-100 text-green-700' :
+                              log.status === 'failed' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-500 font-mono">{log.resend_id || '-'}</td>
+                          <td className="px-4 py-2 text-xs text-red-500 max-w-xs truncate">{log.error_message || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Review Verification */}
         <div className="mb-12">
           <div className="bg-white p-6 border border-goatzy-pale rounded-xl">
@@ -1025,6 +1200,7 @@ const AdminDashboard = () => {
                   <p className="text-sm"><span className="font-light text-gray-600">Generated Review:</span> {selectedCustomer.review_generated ? 'Yes' : 'No'}</p>
                   <p className="text-sm"><span className="font-light text-gray-600">Went to Amazon:</span> {selectedCustomer.went_to_amazon ? 'Yes' : 'No'}</p>
                   <p className="text-sm"><span className="font-light text-gray-600">Claimed Gifts:</span> {selectedCustomer.claimed_gifts ? 'Yes' : 'No'}</p>
+                  <p className="text-sm"><span className="font-light text-gray-600">Email Sent:</span> {selectedCustomer.email_sent ? 'Yes' : 'No'}{selectedCustomer.email_sent_at ? ` (${new Date(selectedCustomer.email_sent_at).toLocaleString()})` : ''}</p>
                 </div>
               </div>
             </div>

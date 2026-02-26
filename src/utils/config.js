@@ -100,7 +100,7 @@ export async function fetchGlobalConfig() {
     const { data, error } = await supabase
       .from('site_config')
       .select('config_key, config_value')
-      .in('config_key', ['deepseek_api_key', 'products_list']);
+      .in('config_key', ['deepseek_api_key', 'products_list', 'resend_api_key', 'sender_email']);
 
     if (error) throw error;
 
@@ -111,6 +111,8 @@ export async function fetchGlobalConfig() {
 
     globalConfigCache = {
       api_key: config.deepseek_api_key?.api_key || '',
+      resend_api_key: config.resend_api_key?.api_key || '',
+      sender_email: config.sender_email?.email || '',
       products_list: config.products_list || [{ slug: 'goat-stand', name: 'Goat Stand' }]
     };
     globalCacheTimestamp = Date.now();

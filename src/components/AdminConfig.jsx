@@ -15,6 +15,8 @@ import {
 const AdminConfig = ({ onBack }) => {
   // Global state
   const [apiKey, setApiKey] = useState('');
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
   const [productsList, setProductsList] = useState([]);
   const [selectedSlug, setSelectedSlug] = useState('');
 
@@ -24,6 +26,7 @@ const AdminConfig = ({ onBack }) => {
   const [welcomeText, setWelcomeText] = useState({ title: '', paragraph1: '', paragraph2: '', tagline: '' });
   const [videoConfig, setVideoConfig] = useState({ youtube_id: '' });
   const [amazonReviewUrl, setAmazonReviewUrl] = useState('');
+  const [ebookUrl, setEbookUrl] = useState('');
   const [upsells, setUpsells] = useState([]);
 
   // UI state
@@ -32,6 +35,7 @@ const AdminConfig = ({ onBack }) => {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [error, setError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showResendKey, setShowResendKey] = useState(false);
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [newProductSlug, setNewProductSlug] = useState('');
   const [newProductName, setNewProductName] = useState('');
@@ -41,6 +45,7 @@ const AdminConfig = ({ onBack }) => {
   const autoSaveEnabledRef = useRef(false);
   const enableAutoSaveTimerRef = useRef(null);
   const apiKeyAutoSaveTimerRef = useRef(null);
+  const resendAutoSaveTimerRef = useRef(null);
   const apiKeyLoadedRef = useRef(false);
 
   // Load global config on mount
@@ -56,6 +61,8 @@ const AdminConfig = ({ onBack }) => {
         fetchProductsList()
       ]);
       setApiKey(globalConfig.api_key || '');
+      setResendApiKey(globalConfig.resend_api_key || '');
+      setSenderEmail(globalConfig.sender_email || '');
       setProductsList(products || []);
       if (products && products.length > 0) {
         setSelectedSlug(products[0].slug);
@@ -84,6 +91,7 @@ const AdminConfig = ({ onBack }) => {
       setWelcomeText(config.welcome_text || { title: '', paragraph1: '', paragraph2: '', tagline: '' });
       setVideoConfig(config.video || { youtube_id: '' });
       setAmazonReviewUrl(config.amazon_review_url || '');
+      setEbookUrl(config.ebook_url || '');
       setUpsells(config.upsells || []);
     } catch (err) {
       setError(`Failed to load config for ${slug}`);
@@ -118,6 +126,7 @@ const AdminConfig = ({ onBack }) => {
           welcome_text: welcomeText,
           video: videoConfig,
           amazon_review_url: amazonReviewUrl,
+          ebook_url: ebookUrl,
           upsells: upsells
         });
         setSaveSuccess('Auto-saved!');
@@ -133,7 +142,7 @@ const AdminConfig = ({ onBack }) => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlug, productName, deepseekPrompt, welcomeText, videoConfig, amazonReviewUrl, upsells]);
+  }, [selectedSlug, productName, deepseekPrompt, welcomeText, videoConfig, amazonReviewUrl, ebookUrl, upsells]);
 
   // ---- Auto-save: API key (debounced 2s) ----
   useEffect(() => {
@@ -161,12 +170,42 @@ const AdminConfig = ({ onBack }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
+  // ---- Auto-save: Resend config (debounced 2s) ----
+  useEffect(() => {
+    if (!apiKeyLoadedRef.current) return;
+
+    if (resendAutoSaveTimerRef.current) clearTimeout(resendAutoSaveTimerRef.current);
+
+    resendAutoSaveTimerRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      setError('');
+      try {
+        await Promise.all([
+          updateGlobalConfig('resend_api_key', { api_key: resendApiKey }),
+          updateGlobalConfig('sender_email', { email: senderEmail })
+        ]);
+        setSaveSuccess('Email settings saved!');
+        setTimeout(() => setSaveSuccess(''), 2000);
+      } catch (err) {
+        setError('Failed to save email settings: ' + err.message);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (resendAutoSaveTimerRef.current) clearTimeout(resendAutoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resendApiKey, senderEmail]);
+
   // Cleanup all timers on unmount
   useEffect(() => {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       if (enableAutoSaveTimerRef.current) clearTimeout(enableAutoSaveTimerRef.current);
       if (apiKeyAutoSaveTimerRef.current) clearTimeout(apiKeyAutoSaveTimerRef.current);
+      if (resendAutoSaveTimerRef.current) clearTimeout(resendAutoSaveTimerRef.current);
     };
   }, []);
 
@@ -338,6 +377,59 @@ const AdminConfig = ({ onBack }) => {
             </div>
             <p className="text-xs text-gray-500">Shared across all products. Saved automatically when you type.</p>
           </div>
+
+          {/* Resend Email Config */}
+          <div className="bg-white border border-goatzy-pale rounded-xl p-6 shadow-sm mt-4">
+            <h3 className="text-xl font-light tracking-wide text-goatzy-dark mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-goatzy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Resend Email Config
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-light mb-1 text-gray-700">Resend API Key</label>
+                <div className="relative">
+                  <input
+                    type={showResendKey ? 'text' : 'password'}
+                    value={resendApiKey}
+                    onChange={(e) => setResendApiKey(e.target.value)}
+                    placeholder="re_xxxxxxxxxx..."
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy transition-colors font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResendKey(!showResendKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-goatzy-dark transition-colors"
+                  >
+                    {showResendKey ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-light mb-1 text-gray-700">Sender Email</label>
+                <input
+                  type="email"
+                  value={senderEmail}
+                  onChange={(e) => setSenderEmail(e.target.value)}
+                  placeholder="hello@goatzy.com"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">Must be a verified domain in Resend. Emails are sent as "Goatzy &lt;this-address&gt;".</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ============= PRODUCT SECTION ============= */}
@@ -446,6 +538,17 @@ const AdminConfig = ({ onBack }) => {
                       placeholder="https://amazon.com/review/create-review?asin=..."
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm font-mono"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-light mb-1 text-gray-700">Ebook PDF URL (email attachment)</label>
+                    <input
+                      type="text"
+                      value={ebookUrl}
+                      onChange={(e) => setEbookUrl(e.target.value)}
+                      placeholder="https://your-storage.com/ebooks/product-guide.pdf"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm font-mono"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Public URL to the PDF file. Will be sent as attachment via Resend.</p>
                   </div>
                   <div className="p-3 bg-goatzy-bg rounded-lg">
                     <p className="text-xs text-gray-600">
