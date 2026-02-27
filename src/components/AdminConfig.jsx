@@ -6,6 +6,7 @@ import {
   updateGlobalConfig,
   updateProductConfig
 } from '../utils/config';
+import { supabase } from '../utils/supabase';
 
 /**
  * AdminConfig Component - Goatzy US Campaign (Multi-Product)
@@ -39,6 +40,7 @@ const AdminConfig = ({ onBack }) => {
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [newProductSlug, setNewProductSlug] = useState('');
   const [newProductName, setNewProductName] = useState('');
+  const [isUploadingEbook, setIsUploadingEbook] = useState(false);
 
   // Auto-save refs
   const autoSaveTimerRef = useRef(null);
@@ -275,6 +277,69 @@ const AdminConfig = ({ onBack }) => {
     const updated = [...upsells];
     updated[index] = { ...updated[index], features: featuresStr.split('\n').filter(f => f.trim()) };
     setUpsells(updated);
+  };
+
+  // Upload ebook PDF to Supabase Storage
+  const handleEbookUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are allowed.');
+      return;
+    }
+
+    if (!supabase) {
+      setError('Supabase not configured. Cannot upload files.');
+      return;
+    }
+
+    setIsUploadingEbook(true);
+    setError('');
+
+    try {
+      const filePath = `${selectedSlug}/${file.name}`;
+
+      // Upload (upsert to overwrite if same name)
+      const { error: uploadError } = await supabase.storage
+        .from('ebooks')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('ebooks')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+      setEbookUrl(publicUrl);
+      setSaveSuccess('Ebook uploaded!');
+      setTimeout(() => setSaveSuccess(''), 2000);
+    } catch (err) {
+      setError('Upload failed: ' + (err.message || err));
+    } finally {
+      setIsUploadingEbook(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  };
+
+  // Remove ebook from storage and clear URL
+  const handleRemoveEbook = async () => {
+    if (!ebookUrl || !supabase) return;
+
+    try {
+      // Extract path from public URL: ...storage/v1/object/public/ebooks/{slug}/{file}
+      const match = ebookUrl.match(/\/ebooks\/(.+)$/);
+      if (match) {
+        await supabase.storage.from('ebooks').remove([match[1]]);
+      }
+    } catch (err) {
+      console.warn('Could not delete old ebook file:', err);
+    }
+
+    setEbookUrl('');
   };
 
   if (isLoading) {
@@ -540,15 +605,67 @@ const AdminConfig = ({ onBack }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-light mb-1 text-gray-700">Ebook PDF URL (email attachment)</label>
-                    <input
-                      type="text"
-                      value={ebookUrl}
-                      onChange={(e) => setEbookUrl(e.target.value)}
-                      placeholder="https://your-storage.com/ebooks/product-guide.pdf"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm font-mono"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">Public URL to the PDF file. Will be sent as attachment via Resend.</p>
+                    <label className="block text-sm font-light mb-1 text-gray-700">Ebook PDF (email attachment)</label>
+                    {ebookUrl ? (
+                      <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <svg className="w-8 h-8 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-green-800 truncate">
+                            {ebookUrl.split('/').pop()}
+                          </p>
+                          <p className="text-xs text-green-600 truncate">{ebookUrl}</p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <label className="px-3 py-1.5 text-xs bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
+                            Replace
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              onChange={handleEbookUpload}
+                              className="hidden"
+                            />
+                          </label>
+                          <button
+                            onClick={handleRemoveEbook}
+                            className="px-3 py-1.5 text-xs bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                        isUploadingEbook ? 'border-goatzy bg-goatzy-bg' : 'border-gray-300 hover:border-goatzy hover:bg-goatzy-bg'
+                      }`}>
+                        {isUploadingEbook ? (
+                          <div className="flex items-center gap-2">
+                            <svg className="animate-spin h-5 w-5 text-goatzy" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            <span className="text-sm text-goatzy-dark">Uploading...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p className="text-sm text-gray-500">Click to upload ebook PDF</p>
+                            <p className="text-xs text-gray-400 mt-1">PDF files only</p>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleEbookUpload}
+                          disabled={isUploadingEbook}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">Upload a PDF ebook. Hosted on Supabase Storage, sent as email attachment via Resend.</p>
                   </div>
                   <div className="p-3 bg-goatzy-bg rounded-lg">
                     <p className="text-xs text-gray-600">
