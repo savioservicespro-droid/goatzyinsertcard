@@ -169,8 +169,17 @@ Deno.serve(async (req: Request) => {
       .eq("config_key", `product:${product_slug}`)
       .single();
 
-    const ebookUrl = productConfig?.config_value?.ebook_url;
     const productName = productConfig?.config_value?.name || product_slug;
+
+    // Support new `ebooks` array and legacy single `ebook_url`
+    let ebooks: Array<{ name: string; url: string }> = [];
+    if (Array.isArray(productConfig?.config_value?.ebooks) && productConfig.config_value.ebooks.length > 0) {
+      ebooks = productConfig.config_value.ebooks;
+    } else if (productConfig?.config_value?.ebook_url) {
+      const legacyUrl = productConfig.config_value.ebook_url;
+      const legacyName = decodeURIComponent(legacyUrl.split("/").pop() || "Ebook.pdf");
+      ebooks = [{ name: legacyName.replace(/\.pdf$/i, ""), url: legacyUrl }];
+    }
 
     // Build email payload
     const emailHtml = buildEmailHtml(customer.first_name, productName);
@@ -182,14 +191,12 @@ Deno.serve(async (req: Request) => {
       html: emailHtml,
     };
 
-    // Add ebook attachment if URL is configured
-    if (ebookUrl) {
-      emailPayload.attachments = [
-        {
-          path: ebookUrl,
-          filename: `${productName.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "-")}-Ebook.pdf`,
-        },
-      ];
+    // Attach all ebooks as PDF attachments
+    if (ebooks.length > 0) {
+      emailPayload.attachments = ebooks.map((eb) => ({
+        path: eb.url,
+        filename: `${eb.name.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "-")}.pdf`,
+      }));
     }
 
     // 6. Send email via Resend API
