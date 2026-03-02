@@ -41,9 +41,13 @@ function CustomerFlow() {
   // Email sending refs
   const emailTimerRef = useRef(null);
   const emailSentRef = useRef(false);
+  const productConfigRef = useRef(null);
 
   useEffect(() => {
-    fetchProductConfig(slug).then(config => setProductConfig(config));
+    fetchProductConfig(slug).then(config => {
+      setProductConfig(config);
+      productConfigRef.current = config;
+    });
   }, [slug]);
 
   // Cleanup email timer on unmount
@@ -68,11 +72,12 @@ function CustomerFlow() {
   };
 
   // Send ebook email (idempotent - safe to call multiple times)
-  const triggerEbookEmail = (id) => {
+  const triggerEbookEmail = (data) => {
     if (emailSentRef.current) return;
     emailSentRef.current = true;
     if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
-    sendEbookEmail(id, slug).catch(err => console.error('Email send error:', err));
+    sendEbookEmail(data, slug, productConfigRef.current)
+      .catch(err => console.error('Email send error:', err));
   };
 
   // Step 2 → Step 3
@@ -85,11 +90,11 @@ function CustomerFlow() {
       setSubmissionId(id);
       localStorage.setItem('submissionId', id);
 
-      // Start 5-minute fallback timer for email
+      // Start 1m30s fallback timer for email (in case user doesn't reach video step)
       emailSentRef.current = false;
       emailTimerRef.current = setTimeout(() => {
-        triggerEbookEmail(id);
-      }, 5 * 60 * 1000);
+        triggerEbookEmail(formData);
+      }, 90 * 1000);
 
       setCurrentStep(3);
     } catch (error) {
@@ -157,8 +162,8 @@ function CustomerFlow() {
       } catch (error) {
         console.error('Error tracking gifts claimed:', error);
       }
-      // Send ebook email now (cancels 5-min timer if still pending)
-      triggerEbookEmail(submissionId);
+      // Send ebook email now (cancels 1m30s timer if still pending)
+      triggerEbookEmail(customerData);
     }
   };
 
