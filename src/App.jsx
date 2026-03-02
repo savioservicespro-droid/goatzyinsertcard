@@ -41,12 +41,11 @@ function CustomerFlow() {
   // Email sending refs
   const emailTimerRef = useRef(null);
   const emailSentRef = useRef(false);
-  const productConfigRef = useRef(null);
+  const submissionIdRef = useRef(null);
 
   useEffect(() => {
     fetchProductConfig(slug).then(config => {
       setProductConfig(config);
-      productConfigRef.current = config;
     });
   }, [slug]);
 
@@ -71,12 +70,14 @@ function CustomerFlow() {
     setCurrentStep(2);
   };
 
-  // Send ebook email (idempotent - safe to call multiple times)
-  const triggerEbookEmail = (data) => {
+  // Send ebook email via Edge Function (idempotent - safe to call multiple times)
+  const triggerEbookEmail = () => {
     if (emailSentRef.current) return;
     emailSentRef.current = true;
     if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
-    sendEbookEmail(data, slug, productConfigRef.current)
+    const id = submissionIdRef.current;
+    if (!id) return;
+    sendEbookEmail(id, slug)
       .catch(err => console.error('Email send error:', err));
   };
 
@@ -88,12 +89,13 @@ function CustomerFlow() {
     try {
       const id = await createSubmission(formData, slug);
       setSubmissionId(id);
+      submissionIdRef.current = id;
       localStorage.setItem('submissionId', id);
 
       // Start 1m30s fallback timer for email (in case user doesn't reach video step)
       emailSentRef.current = false;
       emailTimerRef.current = setTimeout(() => {
-        triggerEbookEmail(formData);
+        triggerEbookEmail();
       }, 90 * 1000);
 
       setCurrentStep(3);
@@ -163,7 +165,7 @@ function CustomerFlow() {
         console.error('Error tracking gifts claimed:', error);
       }
       // Send ebook email now (cancels 1m30s timer if still pending)
-      triggerEbookEmail(customerData);
+      triggerEbookEmail();
     }
   };
 

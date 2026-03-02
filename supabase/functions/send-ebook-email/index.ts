@@ -95,8 +95,69 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { customer_id, product_slug } = await req.json();
+    const body = await req.json();
+    const { customer_id, product_slug, test_to } = body;
 
+    // Create Supabase admin client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch Resend API key from site_config
+    const { data: resendConfig } = await supabase
+      .from("site_config")
+      .select("config_value")
+      .eq("config_key", "resend_api_key")
+      .single();
+
+    const resendApiKey = resendConfig?.config_value?.api_key;
+    if (!resendApiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Resend API key not configured in admin settings" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Fetch sender email from site_config
+    const { data: senderConfig } = await supabase
+      .from("site_config")
+      .select("config_value")
+      .eq("config_key", "sender_email")
+      .single();
+
+    const senderEmail = senderConfig?.config_value?.email || "noreply@goatzy.com";
+
+    // ---- TEST MODE: send a simple test email, no customer DB lookup ----
+    if (test_to) {
+      const resendResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${resendApiKey}`,
+        },
+        body: JSON.stringify({
+          from: `Goatzy <${senderEmail}>`,
+          to: [test_to],
+          subject: "Goatzy — Test Email",
+          html: "<p>This is a test email from Goatzy. If you received this, Resend is configured correctly! ✅</p>",
+        }),
+      });
+
+      const resendData = await resendResponse.json();
+      if (!resendResponse.ok) {
+        return new Response(
+          JSON.stringify({ success: false, error: resendData?.message || `Resend error ${resendResponse.status}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, resend_id: resendData.id }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ---- NORMAL MODE: send ebook email to a real customer ----
     if (!customer_id || !product_slug) {
       return new Response(
         JSON.stringify({ success: false, error: "customer_id and product_slug are required" }),
@@ -104,12 +165,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create Supabase admin client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // 1. Fetch customer data
+    // Fetch customer data
     const { data: customer, error: customerError } = await supabase
       .from("customer_submissions")
       .select("id, first_name, last_name, email, email_sent")
@@ -123,7 +179,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. Idempotency check - don't send twice
+    // Idempotency check - don't send twice
     if (customer.email_sent) {
       return new Response(
         JSON.stringify({ success: true, message: "Email already sent", skipped: true }),
@@ -131,38 +187,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Fetch Resend API key from site_config
-    const { data: resendConfig } = await supabase
-      .from("site_config")
-      .select("config_value")
-      .eq("config_key", "resend_api_key")
-      .single();
-
-    const resendApiKey = resendConfig?.config_value?.api_key;
-    if (!resendApiKey) {
-      const errMsg = "Resend API key not configured";
-      await supabase.from("email_logs").insert({
-        customer_id,
-        product_slug,
-        status: "failed",
-        error_message: errMsg,
-      });
-      return new Response(
-        JSON.stringify({ success: false, error: errMsg }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 4. Fetch sender email from site_config
-    const { data: senderConfig } = await supabase
-      .from("site_config")
-      .select("config_value")
-      .eq("config_key", "sender_email")
-      .single();
-
-    const senderEmail = senderConfig?.config_value?.email || "noreply@goatzy.com";
-
-    // 5. Fetch product config for ebook URL and product name
+    // Fetch product config for ebook URLs and product name
     const { data: productConfig } = await supabase
       .from("site_config")
       .select("config_value")
@@ -182,16 +207,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build email payload
-    const emailHtml = buildEmailHtml(customer.first_name, productName);
-
     const emailPayload: Record<string, unknown> = {
       from: `Goatzy <${senderEmail}>`,
       to: [customer.email],
       subject: `Your Goatzy Ebook is Ready!`,
-      html: emailHtml,
+      html: buildEmailHtml(customer.first_name, productName),
     };
 
-    // Attach all ebooks as PDF attachments
     if (ebooks.length > 0) {
       emailPayload.attachments = ebooks.map((eb) => ({
         path: eb.url,
@@ -199,7 +221,7 @@ Deno.serve(async (req: Request) => {
       }));
     }
 
-    // 6. Send email via Resend API
+    // Send email via Resend API
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -213,31 +235,17 @@ Deno.serve(async (req: Request) => {
 
     if (!resendResponse.ok) {
       const errMsg = resendData?.message || `Resend API error: ${resendResponse.status}`;
-      await supabase.from("email_logs").insert({
-        customer_id,
-        product_slug,
-        status: "failed",
-        error_message: errMsg,
-      });
       return new Response(
         JSON.stringify({ success: false, error: errMsg }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 7. Mark email as sent on customer record
+    // Mark email as sent on customer record
     await supabase
       .from("customer_submissions")
       .update({ email_sent: true, email_sent_at: new Date().toISOString() })
       .eq("id", customer_id);
-
-    // 8. Log successful send
-    await supabase.from("email_logs").insert({
-      customer_id,
-      product_slug,
-      status: "sent",
-      resend_id: resendData.id || null,
-    });
 
     return new Response(
       JSON.stringify({ success: true, resend_id: resendData.id }),

@@ -291,30 +291,27 @@ const AdminConfig = ({ onBack }) => {
     setUpsells(updated);
   };
 
-  // Send a test email via Resend directly
+  // Send a test email via Edge Function (avoids CORS)
   const handleSendTestEmail = async () => {
-    if (!testEmailAddress || !resendApiKey || !senderEmail) return;
+    if (!testEmailAddress) return;
     setIsSendingTest(true);
     setTestEmailResult(null);
     try {
-      const response = await fetch('https://api.resend.com/emails', {
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+      const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-ebook-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
         },
-        body: JSON.stringify({
-          from: `Goatzy <${senderEmail}>`,
-          to: [testEmailAddress],
-          subject: 'Goatzy — Test Email',
-          html: '<p>This is a test email from Goatzy. If you received this, Resend is configured correctly!</p>',
-        }),
+        body: JSON.stringify({ test_to: testEmailAddress }),
       });
       const data = await response.json();
-      if (response.ok) {
-        setTestEmailResult({ ok: true, message: `Sent! Resend ID: ${data.id}` });
+      if (response.ok && data.success) {
+        setTestEmailResult({ ok: true, message: `Sent! Resend ID: ${data.resend_id}` });
       } else {
-        setTestEmailResult({ ok: false, message: data.message || JSON.stringify(data) });
+        setTestEmailResult({ ok: false, message: data.error || JSON.stringify(data) });
       }
     } catch (err) {
       setTestEmailResult({ ok: false, message: err.message });
@@ -572,7 +569,7 @@ const AdminConfig = ({ onBack }) => {
                   />
                   <button
                     onClick={handleSendTestEmail}
-                    disabled={isSendingTest || !testEmailAddress || !resendApiKey || !senderEmail}
+                    disabled={isSendingTest || !testEmailAddress}
                     className="px-4 py-2 text-sm bg-goatzy-dark text-white rounded-lg hover:bg-goatzy transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     {isSendingTest ? 'Sending...' : 'Send test'}
