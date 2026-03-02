@@ -42,6 +42,9 @@ const AdminConfig = ({ onBack }) => {
   const [newProductSlug, setNewProductSlug] = useState('');
   const [newProductName, setNewProductName] = useState('');
   const [isUploadingEbook, setIsUploadingEbook] = useState(false); // uploading a new ebook
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState(null); // { ok, message }
 
   // Auto-save refs
   const autoSaveTimerRef = useRef(null);
@@ -288,6 +291,38 @@ const AdminConfig = ({ onBack }) => {
     setUpsells(updated);
   };
 
+  // Send a test email via Resend directly
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress || !resendApiKey || !senderEmail) return;
+    setIsSendingTest(true);
+    setTestEmailResult(null);
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${resendApiKey}`,
+        },
+        body: JSON.stringify({
+          from: `Goatzy <${senderEmail}>`,
+          to: [testEmailAddress],
+          subject: 'Goatzy — Test Email',
+          html: '<p>This is a test email from Goatzy. If you received this, Resend is configured correctly!</p>',
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setTestEmailResult({ ok: true, message: `Sent! Resend ID: ${data.id}` });
+      } else {
+        setTestEmailResult({ ok: false, message: data.message || JSON.stringify(data) });
+      }
+    } catch (err) {
+      setTestEmailResult({ ok: false, message: err.message });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
   // Upload a new ebook or replace one at replaceIndex
   const handleEbookUpload = async (e, replaceIndex = null) => {
     const file = e.target.files?.[0];
@@ -522,6 +557,32 @@ const AdminConfig = ({ onBack }) => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm"
                 />
                 <p className="mt-1 text-xs text-gray-500">Must be a verified domain in Resend. Emails are sent as "Goatzy &lt;this-address&gt;".</p>
+              </div>
+
+              {/* Test Email */}
+              <div className="pt-2 border-t border-gray-100">
+                <label className="block text-sm font-light mb-2 text-gray-700">Send Test Email</label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={testEmailAddress}
+                    onChange={(e) => setTestEmailAddress(e.target.value)}
+                    placeholder="your@email.com"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm"
+                  />
+                  <button
+                    onClick={handleSendTestEmail}
+                    disabled={isSendingTest || !testEmailAddress || !resendApiKey || !senderEmail}
+                    className="px-4 py-2 text-sm bg-goatzy-dark text-white rounded-lg hover:bg-goatzy transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    {isSendingTest ? 'Sending...' : 'Send test'}
+                  </button>
+                </div>
+                {testEmailResult && (
+                  <p className={`mt-2 text-xs font-mono ${testEmailResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                    {testEmailResult.ok ? '✓' : '✗'} {testEmailResult.message}
+                  </p>
+                )}
               </div>
             </div>
           </div>
