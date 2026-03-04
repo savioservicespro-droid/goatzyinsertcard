@@ -7,13 +7,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function buildEmailHtml(firstName: string, productName: string): string {
+function buildEmailHtml(firstName: string, productName: string, downloadUrl: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Goatzy Ebook</title>
+  <title>Your Goatzy Downloads</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f8f6f3;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f6f3;padding:40px 20px;">
@@ -39,24 +39,25 @@ function buildEmailHtml(firstName: string, productName: string): string {
                 Thank you for your purchase of the <strong style="color:#2d2d2d;">${productName}</strong>! We're thrilled to have you join the Goatzy family.
               </p>
 
-              <p style="margin:0 0 20px 0;color:#555555;font-size:16px;line-height:1.6;font-weight:300;">
-                As promised, your exclusive ebook is attached to this email. It contains everything you need to get started and make the most of your new product.
+              <p style="margin:0 0 28px 0;color:#555555;font-size:16px;line-height:1.6;font-weight:300;">
+                Your exclusive ebooks and assembly guide are ready to download. Click the button below to access all your files.
               </p>
 
-              <!-- Highlight Box -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+              <!-- CTA Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;">
                 <tr>
-                  <td style="background-color:#f8f6f3;border-radius:8px;padding:20px 24px;border-left:4px solid #2d2d2d;">
-                    <p style="margin:0;color:#2d2d2d;font-size:14px;font-weight:400;">
-                      📎 <strong>Your ebook is attached as a PDF file.</strong><br>
-                      <span style="color:#777;">Download it and keep it handy for reference!</span>
-                    </p>
+                  <td style="border-radius:8px;background-color:#2d2d2d;">
+                    <a href="${downloadUrl}" target="_blank"
+                       style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:15px;font-weight:400;text-decoration:none;letter-spacing:0.5px;border-radius:8px;">
+                      Access Your Downloads &rarr;
+                    </a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:24px 0 0 0;color:#555555;font-size:16px;line-height:1.6;font-weight:300;">
-                If you have any questions, don't hesitate to reach out. We're here to help!
+              <p style="margin:0;color:#999999;font-size:13px;line-height:1.6;font-weight:300;">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <a href="${downloadUrl}" style="color:#2d2d2d;word-break:break-all;">${downloadUrl}</a>
               </p>
             </td>
           </tr>
@@ -97,6 +98,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const { customer_id, product_slug, test_to } = body;
+    console.log("[send-ebook-email] request", { customer_id, product_slug, test_to: !!test_to });
 
     // Create Supabase admin client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -104,11 +106,13 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch Resend API key from site_config
-    const { data: resendConfig } = await supabase
+    const { data: resendConfig, error: resendConfigErr } = await supabase
       .from("site_config")
       .select("config_value")
       .eq("config_key", "resend_api_key")
       .single();
+
+    console.log("[send-ebook-email] resend config fetch", { ok: !!resendConfig, err: resendConfigErr?.message });
 
     const resendApiKey = resendConfig?.config_value?.api_key;
     if (!resendApiKey) {
@@ -126,6 +130,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     const senderEmail = senderConfig?.config_value?.email || "noreply@goatzy.com";
+    console.log("[send-ebook-email] sender email", senderEmail);
 
     // ---- TEST MODE: send a simple test email, no customer DB lookup ----
     if (test_to) {
@@ -145,6 +150,7 @@ Deno.serve(async (req: Request) => {
 
       const resendData = await resendResponse.json();
       if (!resendResponse.ok) {
+        console.error("[send-ebook-email] test resend error", resendData);
         return new Response(
           JSON.stringify({ success: false, error: resendData?.message || `Resend error ${resendResponse.status}` }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -172,22 +178,25 @@ Deno.serve(async (req: Request) => {
       .eq("id", customer_id)
       .single();
 
+    console.log("[send-ebook-email] customer fetch", { found: !!customer, err: customerError?.message });
+
     if (customerError || !customer) {
       return new Response(
-        JSON.stringify({ success: false, error: "Customer not found" }),
+        JSON.stringify({ success: false, error: `Customer not found: ${customerError?.message || "no data"}` }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Idempotency check - don't send twice
     if (customer.email_sent) {
+      console.log("[send-ebook-email] already sent, skipping");
       return new Response(
         JSON.stringify({ success: true, message: "Email already sent", skipped: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch product config for ebook URLs and product name
+    // Fetch product config for product name
     const { data: productConfig } = await supabase
       .from("site_config")
       .select("config_value")
@@ -196,30 +205,20 @@ Deno.serve(async (req: Request) => {
 
     const productName = productConfig?.config_value?.name || product_slug;
 
-    // Support new `ebooks` array and legacy single `ebook_url`
-    let ebooks: Array<{ name: string; url: string }> = [];
-    if (Array.isArray(productConfig?.config_value?.ebooks) && productConfig.config_value.ebooks.length > 0) {
-      ebooks = productConfig.config_value.ebooks;
-    } else if (productConfig?.config_value?.ebook_url) {
-      const legacyUrl = productConfig.config_value.ebook_url;
-      const legacyName = decodeURIComponent(legacyUrl.split("/").pop() || "Ebook.pdf");
-      ebooks = [{ name: legacyName.replace(/\.pdf$/i, ""), url: legacyUrl }];
-    }
+    // Build download page URL
+    const downloadUrl = `https://bonus.goatzy.us/download/${customer_id}`;
+
+    console.log("[send-ebook-email] product", { productName, downloadUrl });
 
     // Build email payload
     const emailPayload: Record<string, unknown> = {
       from: `Goatzy <${senderEmail}>`,
       to: [customer.email],
-      subject: `Your Goatzy Ebook is Ready!`,
-      html: buildEmailHtml(customer.first_name, productName),
+      subject: `Your Goatzy Downloads are Ready!`,
+      html: buildEmailHtml(customer.first_name, productName, downloadUrl),
     };
 
-    if (ebooks.length > 0) {
-      emailPayload.attachments = ebooks.map((eb) => ({
-        path: eb.url,
-        filename: `${eb.name.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "-")}.pdf`,
-      }));
-    }
+    console.log("[send-ebook-email] calling Resend, to:", customer.email);
 
     // Send email via Resend API
     const resendResponse = await fetch("https://api.resend.com/emails", {
@@ -232,28 +231,37 @@ Deno.serve(async (req: Request) => {
     });
 
     const resendData = await resendResponse.json();
+    console.log("[send-ebook-email] Resend response", { status: resendResponse.status, data: resendData });
 
     if (!resendResponse.ok) {
       const errMsg = resendData?.message || `Resend API error: ${resendResponse.status}`;
+      console.error("[send-ebook-email] Resend error", { errMsg, resendData });
       return new Response(
-        JSON.stringify({ success: false, error: errMsg }),
+        JSON.stringify({ success: false, error: errMsg, resend_details: resendData }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Mark email as sent on customer record
-    await supabase
+    const { error: updateErr } = await supabase
       .from("customer_submissions")
       .update({ email_sent: true, email_sent_at: new Date().toISOString() })
       .eq("id", customer_id);
 
+    if (updateErr) {
+      console.error("[send-ebook-email] update email_sent failed", updateErr.message);
+    }
+
+    console.log("[send-ebook-email] success", resendData.id);
     return new Response(
       JSON.stringify({ success: true, resend_id: resendData.id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[send-ebook-email] unexpected error", errMsg);
     return new Response(
-      JSON.stringify({ success: false, error: err.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: errMsg || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

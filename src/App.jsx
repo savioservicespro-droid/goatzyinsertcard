@@ -8,6 +8,7 @@ import VideoStep from './components/VideoStep';
 import AmazonModal from './components/AmazonModal';
 import AdminDashboard from './components/AdminDashboard';
 import AdminConfig from './components/AdminConfig';
+import DownloadPage from './components/DownloadPage';
 import {
   createSubmission,
   updateReviewData,
@@ -378,6 +379,7 @@ function App() {
           <AdminConfig onBack={() => navigate('/admin')} />
         </AdminAuthGate>
       } />
+      <Route path="/download/:customerId" element={<DownloadPage />} />
       <Route path="/:productSlug/gifts" element={<DirectVideoPage />} />
       <Route path="/:productSlug" element={<CustomerFlow />} />
     </Routes>
