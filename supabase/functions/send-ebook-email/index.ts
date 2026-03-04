@@ -15,28 +15,40 @@ function buildEmailHtml(firstName: string, productName: string, downloadUrl: str
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Your Goatzy Downloads</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f8f6f3;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f6f3;padding:40px 20px;">
+<body style="margin:0;padding:0;background-color:#f0fff4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fff4;padding:40px 20px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-          <!-- Header -->
+          <!-- Header: white bg with logo -->
           <tr>
-            <td style="background-color:#2d2d2d;padding:32px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:300;letter-spacing:2px;">GOATZY</h1>
+            <td style="background-color:#ffffff;padding:28px 40px 20px;text-align:center;border-bottom:3px solid #2D6A4F;">
+              <img src="https://bonus.goatzy.us/goatzy-logo.jpeg"
+                   alt="Goatzy"
+                   width="160"
+                   style="display:block;margin:0 auto;max-width:160px;height:auto;" />
+            </td>
+          </tr>
+
+          <!-- Green accent bar -->
+          <tr>
+            <td style="background-color:#2D6A4F;padding:12px 40px;text-align:center;">
+              <p style="margin:0;color:#d8f3dc;font-size:12px;font-weight:400;letter-spacing:1.5px;text-transform:uppercase;">
+                Your Downloads Are Ready
+              </p>
             </td>
           </tr>
 
           <!-- Body -->
           <tr>
             <td style="padding:40px;">
-              <h2 style="margin:0 0 16px 0;color:#2d2d2d;font-size:22px;font-weight:300;letter-spacing:0.5px;">
+              <h2 style="margin:0 0 16px 0;color:#1B4332;font-size:22px;font-weight:400;letter-spacing:0.5px;">
                 Hi ${firstName},
               </h2>
 
               <p style="margin:0 0 20px 0;color:#555555;font-size:16px;line-height:1.6;font-weight:300;">
-                Thank you for your purchase of the <strong style="color:#2d2d2d;">${productName}</strong>! We're thrilled to have you join the Goatzy family.
+                Thank you for your purchase of the <strong style="color:#1B4332;">${productName}</strong>! We're thrilled to have you join the Goatzy family.
               </p>
 
               <p style="margin:0 0 28px 0;color:#555555;font-size:16px;line-height:1.6;font-weight:300;">
@@ -46,7 +58,7 @@ function buildEmailHtml(firstName: string, productName: string, downloadUrl: str
               <!-- CTA Button -->
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;">
                 <tr>
-                  <td style="border-radius:8px;background-color:#2d2d2d;">
+                  <td style="border-radius:8px;background-color:#2D6A4F;">
                     <a href="${downloadUrl}" target="_blank"
                        style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:15px;font-weight:400;text-decoration:none;letter-spacing:0.5px;border-radius:8px;">
                       Access Your Downloads &rarr;
@@ -57,19 +69,19 @@ function buildEmailHtml(firstName: string, productName: string, downloadUrl: str
 
               <p style="margin:0;color:#999999;font-size:13px;line-height:1.6;font-weight:300;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
-                <a href="${downloadUrl}" style="color:#2d2d2d;word-break:break-all;">${downloadUrl}</a>
+                <a href="${downloadUrl}" style="color:#2D6A4F;word-break:break-all;">${downloadUrl}</a>
               </p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="background-color:#f8f6f3;padding:24px 40px;text-align:center;border-top:1px solid #e8e4df;">
-              <p style="margin:0 0 8px 0;color:#2d2d2d;font-size:13px;font-weight:400;font-style:italic;">
+            <td style="background-color:#f0fff4;padding:24px 40px;text-align:center;border-top:1px solid #d8f3dc;">
+              <p style="margin:0 0 8px 0;color:#2D6A4F;font-size:13px;font-weight:400;font-style:italic;">
                 Designed by breeders, made for breeders.
               </p>
-              <p style="margin:0;color:#999999;font-size:12px;font-weight:300;">
-                - Team Goatzy
+              <p style="margin:0;color:#52B788;font-size:12px;font-weight:300;">
+                — Team Goatzy
               </p>
             </td>
           </tr>

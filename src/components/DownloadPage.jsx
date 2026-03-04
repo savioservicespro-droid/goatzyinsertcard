@@ -76,6 +76,7 @@ const DownloadPage = () => {
     return (
       <div className="min-h-screen bg-goatzy-bg flex items-center justify-center px-6">
         <div className="text-center max-w-sm">
+          <img src="/goatzy-logo.jpeg" alt="Goatzy" className="h-12 mx-auto mb-6" />
           <h1 className="text-2xl font-light text-goatzy-dark mb-3">Link not found</h1>
           <p className="text-gray-500 font-light">
             This download link is invalid or has expired. Please check your email or contact us at{' '}
@@ -88,9 +89,12 @@ const DownloadPage = () => {
 
   return (
     <div className="min-h-screen bg-goatzy-bg">
-      {/* Header */}
-      <div className="bg-goatzy-dark py-8 px-6 text-center">
-        <h1 className="text-white text-3xl font-light tracking-widest">GOATZY</h1>
+      {/* Header: white bg with logo + green accent */}
+      <div className="bg-white border-b-4 border-goatzy py-6 px-6 text-center">
+        <img src="/goatzy-logo.jpeg" alt="Goatzy" className="h-14 mx-auto" />
+      </div>
+      <div className="bg-goatzy py-2 px-6 text-center">
+        <p className="text-goatzy-pale text-xs tracking-widest uppercase font-light">Your Downloads Are Ready</p>
       </div>
 
       {/* Content */}
