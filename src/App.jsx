@@ -242,6 +242,7 @@ function CustomerFlow() {
           onGiftsClaimed={handleGiftsClaimed}
           onBack={upsellCount > 0 ? handleBack : undefined}
           videoId={productConfig?.video?.youtube_id}
+          productName={productConfig?.name}
         />
       )}
 

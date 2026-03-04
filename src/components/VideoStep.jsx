@@ -5,7 +5,7 @@ import { trackGiftDownload } from '../utils/supabase';
  * VideoStep Component - Goatzy US Campaign
  * Final page: Assembly video + newsletter confirmation
  */
-const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
+const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -25,6 +25,7 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
   };
 
   const youtubeVideoId = videoId || 'PwDO6Hiqtk4';
+  const displayName = productName || 'Goat Stand';
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-goatzy-bg">
@@ -58,7 +59,7 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
               </div>
               <div>
                 <h3 className="text-lg font-light tracking-wide text-goatzy-dark">
-                  How to Assemble Your Goat Stand
+                  How to Assemble Your {displayName}
                 </h3>
                 <p className="text-sm text-gray-500">
                   Step-by-step guide by Team Goatzy
@@ -72,7 +73,7 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
             <iframe
               className="absolute inset-0 w-full h-full"
               src={`https://www.youtube.com/embed/${youtubeVideoId}?rel=0`}
-              title="How to Assemble Your Goatzy Goat Stand"
+              title={`How to Assemble Your Goatzy ${displayName}`}
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -83,7 +84,7 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
           {/* Video Description */}
           <div className="p-6 space-y-3">
             <p className="text-sm text-gray-700 leading-relaxed">
-              Follow along with this step-by-step assembly guide to set up your Goatzy Goat Stand in minutes. Covers all components including the adjustable headpiece, side rails, feeder bowl, and wheel installation.
+              Follow along with this step-by-step assembly guide to set up your Goatzy {displayName}.
             </p>
             <div className="flex flex-wrap gap-2">
               <span className="inline-block px-3 py-1 text-xs font-light bg-goatzy-pale text-goatzy-dark rounded-full">Assembly Guide</span>
@@ -139,13 +140,13 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId }) => {
             Thank you for being part of the Goatzy family!
           </p>
           <p className="text-base text-gray-600 leading-relaxed">
-            We hope your Goat Stand makes farm life easier. If you have any questions, don't hesitate to reach out.
+            We hope your {displayName} makes farm life easier. If you have any questions, don't hesitate to reach out.
           </p>
           <p className="text-sm text-gray-500 pt-2 italic">
             Farmer tested, built to last.
           </p>
           <p className="text-sm text-gray-500 pt-4">
-            Check your email for the download links as well.
+            Check your email for your download links.
           </p>
         </div>
       </div>
