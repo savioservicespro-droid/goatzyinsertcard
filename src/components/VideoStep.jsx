@@ -24,7 +24,18 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
     }
   };
 
-  const youtubeVideoId = videoId || 'PwDO6Hiqtk4';
+  // Accept full YouTube URL or just the ID
+  const extractYouTubeId = (input) => {
+    if (!input) return null;
+    const watchMatch = input.match(/[?&]v=([a-zA-Z0-9_-]{10,12})/);
+    if (watchMatch) return watchMatch[1];
+    const shortMatch = input.match(/youtu\.be\/([a-zA-Z0-9_-]{10,12})/);
+    if (shortMatch) return shortMatch[1];
+    const embedMatch = input.match(/embed\/([a-zA-Z0-9_-]{10,12})/);
+    if (embedMatch) return embedMatch[1];
+    return input; // assume it's already an ID
+  };
+  const youtubeVideoId = extractYouTubeId(videoId) || 'PwDO6Hiqtk4';
   const displayName = productName || 'Goat Stand';
 
   return (
