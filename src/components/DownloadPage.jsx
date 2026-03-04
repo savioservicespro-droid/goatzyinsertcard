@@ -17,51 +17,49 @@ const DownloadPage = () => {
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    loadData();
-  }, [customerId]);
 
-  const loadData = async () => {
     if (!customerId || !supabase) {
       setStatus('error');
       return;
     }
 
-    try {
-      // Fetch customer to get first_name + product_slug
-      const { data: customer, error: customerErr } = await supabase
-        .from('customer_submissions')
-        .select('first_name, product_slug')
-        .eq('id', customerId)
-        .single();
+    const loadData = async () => {
+      try {
+        const { data: customer, error: customerErr } = await supabase
+          .from('customer_submissions')
+          .select('first_name, product_slug')
+          .eq('id', customerId)
+          .single();
 
-      if (customerErr || !customer) {
+        if (customerErr || !customer) {
+          setStatus('error');
+          return;
+        }
+
+        setFirstName(customer.first_name || '');
+
+        const config = await fetchProductConfig(customer.product_slug);
+        setProductName(config?.name || customer.product_slug);
+
+        let ebookList = [];
+        if (Array.isArray(config?.ebooks) && config.ebooks.length > 0) {
+          ebookList = config.ebooks;
+        } else if (config?.ebook_url) {
+          const url = config.ebook_url;
+          const rawName = decodeURIComponent(url.split('/').pop() || 'Ebook.pdf');
+          ebookList = [{ name: rawName.replace(/\.pdf$/i, ''), url }];
+        }
+
+        setEbooks(ebookList);
+        setStatus('ready');
+      } catch (err) {
+        console.error('DownloadPage error:', err);
         setStatus('error');
-        return;
       }
+    };
 
-      setFirstName(customer.first_name || '');
-
-      // Fetch product config for ebooks
-      const config = await fetchProductConfig(customer.product_slug);
-      setProductName(config?.name || customer.product_slug);
-
-      // Support ebooks array + legacy ebook_url
-      let ebookList = [];
-      if (Array.isArray(config?.ebooks) && config.ebooks.length > 0) {
-        ebookList = config.ebooks;
-      } else if (config?.ebook_url) {
-        const url = config.ebook_url;
-        const rawName = decodeURIComponent(url.split('/').pop() || 'Ebook.pdf');
-        ebookList = [{ name: rawName.replace(/\.pdf$/i, ''), url }];
-      }
-
-      setEbooks(ebookList);
-      setStatus('ready');
-    } catch (err) {
-      console.error('DownloadPage error:', err);
-      setStatus('error');
-    }
-  };
+    loadData();
+  }, [customerId]);
 
   if (status === 'loading') {
     return (
