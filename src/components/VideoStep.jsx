@@ -54,10 +54,28 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
           </p>
         </div>
 
+        {/* Email notification - prominent, above the video */}
+        <div
+          className="bg-goatzy-dark rounded-xl p-6 mb-10 text-center animate-fade-in"
+          style={{ animationDelay: '150ms' }}
+        >
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <svg className="w-6 h-6 text-goatzy-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <p className="text-lg md:text-xl text-white font-light">
+              Your ebooks have been sent to your email!
+            </p>
+          </div>
+          <p className="text-sm text-goatzy-accent font-light">
+            Check your inbox for your download links.
+          </p>
+        </div>
+
         {/* Video Card */}
         <div
           className="bg-white rounded-xl border border-goatzy-pale shadow-lg overflow-hidden mb-10 animate-fade-in"
-          style={{ animationDelay: '150ms' }}
+          style={{ animationDelay: '300ms' }}
         >
           {/* Video Header */}
           <div className="p-6 pb-4 border-b border-goatzy-pale">
@@ -103,24 +121,6 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
               <span className="inline-block px-3 py-1 text-xs font-light bg-goatzy-pale text-goatzy-dark rounded-full">All Models</span>
             </div>
           </div>
-        </div>
-
-        {/* Email notification - prominent */}
-        <div
-          className="bg-goatzy-dark rounded-xl p-6 mb-10 text-center animate-fade-in"
-          style={{ animationDelay: '200ms' }}
-        >
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <svg className="w-6 h-6 text-goatzy-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            <p className="text-lg md:text-xl text-white font-light">
-              Your ebooks have been sent to your email!
-            </p>
-          </div>
-          <p className="text-sm text-goatzy-accent font-light">
-            Check your inbox for your download links.
-          </p>
         </div>
 
         {/* Tips Section */}
