@@ -147,7 +147,7 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <p className="text-sm text-gray-700">Lock wheels before loading your goat</p>
+              <p className="text-sm text-gray-700">Put food in the bowl to keep the goats calm</p>
             </div>
             <div className="text-center p-4">
               <div className="w-12 h-12 bg-goatzy-pale rounded-full flex items-center justify-center mx-auto mb-3">
