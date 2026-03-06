@@ -13,6 +13,7 @@ const UpsellStep = ({
   productSlug = 'goat-stand'
 }) => {
   const [codeCopied, setCodeCopied] = useState(false);
+  const hasPromo = Boolean(product.promoCode && product.promoDiscount);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -64,7 +65,8 @@ const UpsellStep = ({
           </p>
         </div>
 
-        {/* PROMO BANNER */}
+        {/* PROMO BANNER - only shown when promo is configured */}
+        {hasPromo && (
         <div className="mb-6 animate-fade-in">
           <div className="relative bg-gradient-to-r from-goatzy-dark to-goatzy rounded-xl p-5 text-white overflow-hidden">
             {/* Background pattern */}
@@ -123,6 +125,7 @@ const UpsellStep = ({
             </div>
           </div>
         </div>
+        )}
 
         {/* Product Card */}
         <div className="bg-white rounded-xl border border-goatzy-pale shadow-lg overflow-hidden mb-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
@@ -136,14 +139,16 @@ const UpsellStep = ({
                 e.target.style.display = 'none';
               }}
             />
-            {/* Price Badge with discount */}
+            {/* Price Badge */}
             <div className="absolute top-6 right-6">
               <div className="bg-goatzy-dark text-white px-4 py-2 rounded-lg shadow-md text-center">
                 <span className="text-2xl font-light">${product.price}</span>
               </div>
-              <div className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full text-center mt-1 shadow-sm">
-                {product.promoDiscount} with code
-              </div>
+              {hasPromo && (
+                <div className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full text-center mt-1 shadow-sm">
+                  {product.promoDiscount} with code
+                </div>
+              )}
             </div>
           </div>
 
@@ -195,7 +200,7 @@ const UpsellStep = ({
                      focus:outline-none focus:ring-2 focus:ring-goatzy-accent focus:ring-offset-2
                      flex items-center justify-center space-x-2"
           >
-            <span>Shop on Amazon - {product.promoDiscount} OFF</span>
+            <span>{hasPromo ? `Shop on Amazon - ${product.promoDiscount} OFF` : 'Shop on Amazon'}</span>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
