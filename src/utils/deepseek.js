@@ -15,9 +15,10 @@ const DEFAULT_SYSTEM_PROMPT = `You write authentic Amazon reviews as a real pers
  * @param {number} stars - Number of stars (1-5)
  * @param {string} tone - Review tone (Enthusiastic/Helpful/Detailed/Honest)
  * @param {string} [productPrompt] - Optional per-product system prompt
+ * @param {string} [productName] - Product name for the user prompt
  * @returns {Promise<string>} - Generated review text
  */
-export async function generateReview(stars, tone, productPrompt) {
+export async function generateReview(stars, tone, productPrompt, productName) {
   let apiKey = process.env.REACT_APP_DEEPSEEK_API_KEY || '';
   let systemPrompt = productPrompt || DEFAULT_SYSTEM_PROMPT;
 
@@ -43,7 +44,8 @@ export async function generateReview(stars, tone, productPrompt) {
 
   const toneStyle = toneInstructions[tone] || 'sincere and honest';
 
-  const userPrompt = `Write a ${stars}-star review for the Goatzy Goat Stand. Be ${toneStyle}. Write VERY SHORT - just 2-4 sentences max (250-400 characters total). Sound like a real farmer/goat owner typing on their phone, not a professional reviewer. ${stars <= 3 ? 'Mention what could be improved.' : 'Share what you genuinely liked about the stand.'} Don't use too many exclamation marks. Be natural and casual. WRITE IN ENGLISH.`;
+  const displayName = productName || 'Goat Stand';
+  const userPrompt = `Write a ${stars}-star review for the Goatzy ${displayName}. Be ${toneStyle}. Write VERY SHORT - just 2-4 sentences max (250-400 characters total). Sound like a real farmer/goat owner typing on their phone, not a professional reviewer. ${stars <= 3 ? 'Mention what could be improved.' : 'Share what you genuinely liked about it.'} Don't use too many exclamation marks. Be natural and casual. WRITE IN ENGLISH.`;
 
   try {
     const response = await fetch(DEEPSEEK_ENDPOINT, {

@@ -222,6 +222,7 @@ function CustomerFlow() {
           onReviewGenerated={handleReviewGenerated}
           onBack={handleBack}
           deepseekPrompt={productConfig?.deepseek_prompt}
+          productName={productConfig?.name}
         />
       )}
 
