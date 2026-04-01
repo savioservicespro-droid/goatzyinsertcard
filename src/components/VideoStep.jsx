@@ -5,7 +5,7 @@ import { trackGiftDownload } from '../utils/supabase';
  * VideoStep Component - Goatzy US Campaign
  * Final page: Assembly video + newsletter confirmation
  */
-const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
+const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName, manualPdfUrl }) => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -71,6 +71,58 @@ const VideoStep = ({ onGiftsClaimed, onBack, videoId, productName }) => {
             Check your inbox for your download links.
           </p>
         </div>
+
+        {/* Usage Manual PDF */}
+        {manualPdfUrl && (
+          <div
+            className="bg-white rounded-xl border border-goatzy-pale shadow-lg overflow-hidden mb-10 animate-fade-in"
+            style={{ animationDelay: '200ms' }}
+          >
+            {/* Manual Header */}
+            <div className="p-6 pb-4 border-b border-goatzy-pale">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-goatzy-pale rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-goatzy-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-light tracking-wide text-goatzy-dark">
+                      Usage Manual
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {displayName} - Instructions
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={manualPdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="flex items-center gap-2 px-5 py-2.5 bg-goatzy-dark text-white text-sm font-light tracking-wide rounded-lg
+                           hover:bg-goatzy transition-all duration-300"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download PDF
+                </a>
+              </div>
+            </div>
+
+            {/* PDF Preview */}
+            <div className="w-full" style={{ height: '500px' }}>
+              <iframe
+                src={manualPdfUrl}
+                title="Usage Manual"
+                className="w-full h-full"
+                frameBorder="0"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Video Card */}
         <div

@@ -2,17 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import WelcomeStep from './components/WelcomeStep';
 import InfoStep from './components/InfoStep';
-import ReviewStep from './components/ReviewStep';
 import UpsellStep from './components/UpsellStep';
 import VideoStep from './components/VideoStep';
-import AmazonModal from './components/AmazonModal';
+// AmazonModal removed - review step skipped
 import AdminDashboard from './components/AdminDashboard';
 import AdminConfig from './components/AdminConfig';
 import DownloadPage from './components/DownloadPage';
 import {
   createSubmission,
-  updateReviewData,
-  trackAmazonVisit,
   trackGiftsClaimed
 } from './utils/supabase';
 import { fetchProductConfig } from './utils/config';
@@ -21,7 +18,7 @@ import { sendEbookEmail } from './utils/email';
 /**
  * CustomerFlow Component - Multi-Product
  * Dynamic step count based on product upsells:
- * 1=Welcome, 2=Info, 3=Review, 4...(3+N)=Upsells, (4+N)=Video
+ * 1=Welcome, 2=Info, 3...(2+N)=Upsells, (3+N)=Video
  */
 function CustomerFlow() {
   const { productSlug } = useParams();
@@ -35,7 +32,6 @@ function CustomerFlow() {
     optInSurveys: false
   });
   const [submissionId, setSubmissionId] = useState(null);
-  const [showAmazonModal, setShowAmazonModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [productConfig, setProductConfig] = useState(null);
 
@@ -59,12 +55,7 @@ function CustomerFlow() {
 
   const upsells = productConfig?.upsells || [];
   const upsellCount = upsells.length;
-  const videoStep = 4 + upsellCount; // Video is after all upsells
-
-  const amazonReviewUrl =
-    productConfig?.amazon_review_url ||
-    process.env.REACT_APP_AMAZON_REVIEW_URL ||
-    'https://amazon.com/review/create-review';
+  const videoStep = 3 + upsellCount; // Video is after all upsells (no review step)
 
   // Step 1 → Step 2
   const handleWelcomeContinue = () => {
@@ -82,7 +73,7 @@ function CustomerFlow() {
       .catch(err => console.error('Email send error:', err));
   };
 
-  // Step 2 → Step 3
+  // Step 2 → Step 3 (first upsell or video directly)
   const handleInfoContinue = async (formData) => {
     setIsLoading(true);
     setCustomerData(formData);
@@ -106,40 +97,6 @@ function CustomerFlow() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Review generated
-  const handleReviewGenerated = async (reviewData) => {
-    if (submissionId) {
-      try {
-        await updateReviewData(submissionId, reviewData);
-      } catch (error) {
-        console.error('Error tracking review generation:', error);
-      }
-    }
-  };
-
-  // Amazon redirect
-  const handleAmazonRedirect = () => {
-    setShowAmazonModal(true);
-  };
-
-  const handleConfirmAmazonRedirect = async () => {
-    window.open(amazonReviewUrl, '_blank');
-    setShowAmazonModal(false);
-
-    if (submissionId) {
-      try {
-        await trackAmazonVisit(submissionId);
-      } catch (error) {
-        console.error('Error tracking Amazon visit:', error);
-      }
-    }
-  };
-
-  // Step 3 → Step 4 (first upsell or video)
-  const handleClaimGifts = () => {
-    setCurrentStep(4);
   };
 
   // Skip directly to video page
@@ -170,9 +127,9 @@ function CustomerFlow() {
     }
   };
 
-  // Determine which upsell index we're on (step 4 = upsell 0, step 5 = upsell 1, etc.)
-  const currentUpsellIndex = currentStep - 4;
-  const isUpsellStep = currentStep >= 4 && currentStep < videoStep;
+  // Determine which upsell index we're on (step 3 = upsell 0, step 4 = upsell 1, etc.)
+  const currentUpsellIndex = currentStep - 3;
+  const isUpsellStep = currentStep >= 3 && currentStep < videoStep;
   const isVideoStep = currentStep >= videoStep;
 
   return (
@@ -214,18 +171,6 @@ function CustomerFlow() {
         />
       )}
 
-      {/* Step 3: Review Generation */}
-      {currentStep === 3 && (
-        <ReviewStep
-          onAmazonRedirect={handleAmazonRedirect}
-          onClaimGifts={handleClaimGifts}
-          onReviewGenerated={handleReviewGenerated}
-          onBack={handleBack}
-          deepseekPrompt={productConfig?.deepseek_prompt}
-          productName={productConfig?.name}
-        />
-      )}
-
       {/* Dynamic Upsell Steps */}
       {isUpsellStep && upsells[currentUpsellIndex] && (
         <UpsellStep
@@ -244,15 +189,10 @@ function CustomerFlow() {
           onBack={upsellCount > 0 ? handleBack : undefined}
           videoId={productConfig?.video?.youtube_id}
           productName={productConfig?.name}
+          manualPdfUrl={productConfig?.manual_pdf_url}
         />
       )}
 
-      {/* Amazon Modal */}
-      <AmazonModal
-        isOpen={showAmazonModal}
-        onClose={() => setShowAmazonModal(false)}
-        onConfirm={handleConfirmAmazonRedirect}
-      />
     </div>
   );
 }

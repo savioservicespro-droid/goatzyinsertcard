@@ -29,6 +29,7 @@ const AdminConfig = ({ onBack }) => {
   const [amazonReviewUrl, setAmazonReviewUrl] = useState('');
   const [ebooks, setEbooks] = useState([]); // [{ name, url }]
   const [uploadingEbookIndex, setUploadingEbookIndex] = useState(null); // null = new, number = replace
+  const [manualPdfUrl, setManualPdfUrl] = useState('');
   const [upsells, setUpsells] = useState([]);
 
   // UI state
@@ -106,6 +107,7 @@ const AdminConfig = ({ onBack }) => {
       } else {
         setEbooks([]);
       }
+      setManualPdfUrl(config.manual_pdf_url || '');
       setUpsells(config.upsells || []);
     } catch (err) {
       setError(`Failed to load config for ${slug}`);
@@ -141,6 +143,7 @@ const AdminConfig = ({ onBack }) => {
           video: videoConfig,
           amazon_review_url: amazonReviewUrl,
           ebooks: ebooks,
+          manual_pdf_url: manualPdfUrl,
           upsells: upsells
         });
         setSaveSuccess('Auto-saved!');
@@ -156,7 +159,7 @@ const AdminConfig = ({ onBack }) => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlug, productName, deepseekPrompt, welcomeText, videoConfig, amazonReviewUrl, ebooks, upsells]);
+  }, [selectedSlug, productName, deepseekPrompt, welcomeText, videoConfig, amazonReviewUrl, ebooks, manualPdfUrl, upsells]);
 
   // ---- Auto-save: API key (debounced 2s) ----
   useEffect(() => {
@@ -238,6 +241,7 @@ const AdminConfig = ({ onBack }) => {
         welcome_text: { title: 'Thank you for your purchase!', paragraph1: '', paragraph2: '', tagline: '' },
         video: { youtube_id: '' },
         amazon_review_url: '',
+        manual_pdf_url: '',
         upsells: []
       });
       // Update products list
@@ -862,6 +866,41 @@ const AdminConfig = ({ onBack }) => {
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Manual PDF */}
+              <div className="bg-white border border-goatzy-pale rounded-xl p-6 shadow-sm">
+                <h3 className="text-xl font-light tracking-wide text-goatzy-dark mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-goatzy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Usage Manual (PDF)
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-light mb-1 text-gray-700">PDF URL (Supabase Storage public URL)</label>
+                    <input
+                      type="text"
+                      value={manualPdfUrl}
+                      onChange={(e) => setManualPdfUrl(e.target.value)}
+                      placeholder="https://xxx.supabase.co/storage/v1/object/public/..."
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-goatzy text-sm font-mono"
+                    />
+                  </div>
+                  {manualPdfUrl && (
+                    <div>
+                      <p className="text-sm font-light text-gray-700 mb-2">Preview</p>
+                      <div className="border border-gray-200 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                        <iframe
+                          src={manualPdfUrl}
+                          title="Manual PDF Preview"
+                          className="w-full h-full"
+                          frameBorder="0"
                         />
                       </div>
                     </div>
